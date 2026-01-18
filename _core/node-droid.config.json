@@ -1,0 +1,44 @@
+{
+  "repositories": [
+    {
+      "name": "main-app",
+      "path": "/workspace/repos/main-app",
+      "watchBranch": "develop",
+      "enabled": true,
+      "gitRemote": "git@github.com:org/main-app.git",
+      "sshKeyPath": "/root/.ssh/id_rsa_main"
+    },
+    {
+      "name": "microservice-auth",
+      "watchBranch": "main",
+      "enabled": true,
+      "gitRemote": "git@github.com:org/auth-service.git"
+    },
+    {
+      "name": "frontend-dashboard",
+      "path": "/workspace/repos/dashboard",
+      "watchBranch": "staging",
+      "enabled": true,
+      "gitRemote": "git@gitlab.com:org/dashboard.git",
+      "sshKeyPath": "/root/.ssh/id_rsa_gitlab"
+    },
+    {
+      "name": "legacy-api",
+      "path": "/workspace/repos/legacy",
+      "watchBranch": "master",
+      "enabled": false
+    }
+  ],
+  "llm": {
+    "apiUrl": "http://localhost:8000/v1",
+    "apiKey": "dummy",
+    "model": "deepseek-coder-33b"
+  },
+  "repomix": {
+    "maxContextSize": 30000
+  },
+  "defaults": {
+    "pollInterval": 30000,
+    "watchBranch": "main"
+  }
+}

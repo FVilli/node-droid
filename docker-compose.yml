@@ -1,0 +1,22 @@
+
+services:
+  node-droid:
+    build:
+      context: ..
+      dockerfile: core/Dockerfile
+    container_name: node-droid
+    volumes:
+      - ./workspace:/workspace
+      # SSH keys
+      - ~/.ssh:/root/.ssh:ro
+      # Configurazione
+
+      
+
+    restart: unless-stopped
+    networks:
+      - node-droid-network
+
+networks:
+  node-droid-network:
+    driver: bridge
