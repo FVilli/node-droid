@@ -1,19 +1,17 @@
 import { BeforeApplicationShutdown, Injectable, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { ENV } from './env';
-import { readRepoFileSafe, sleep } from './libs/utils';
+import { getRunId, readRepoFileSafe, sleep } from './libs/utils';
 
 import { RunStateService } from './services/run-state.service';
 import { WorkspaceService } from './services/workspace.service';
 import { RepoContextService } from './services/repo-context.service';
 import { GitService } from './services/git.service';
 import { TaskExtractionService } from './services/task-extraction.service';
-import { TaskNormalizationService } from './services/task-normalization.service';
-import { TaskQueueService } from './services/task-queue.service';
 import { TaskExecutorService } from './services/task-executor.service';
 import { RunLoggerService } from './services/run-logger.service';
-import { MergeRequestService } from './services/merge-request.service';
-import { RawTask } from './interfaces';
-import { extractFilePaths } from './libs/utils';
+import { Task } from './interfaces';
+import { title } from 'process';
+import { FileSystemToolService } from './services/filesystem-tool.service';
 
 @Injectable()
 export class AppService implements OnApplicationBootstrap, BeforeApplicationShutdown {
@@ -26,11 +24,9 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
     private readonly repoContext: RepoContextService,
     private readonly git: GitService,
     private readonly taskExtraction: TaskExtractionService,
-    private readonly taskNormalization: TaskNormalizationService,
-    private readonly taskQueue: TaskQueueService,
     private readonly taskExecutor: TaskExecutorService,
     private readonly logger: RunLoggerService,
-    private readonly mr: MergeRequestService,
+    private readonly fileSystemTool: FileSystemToolService,
   ) {}
 
   onApplicationBootstrap() {
@@ -57,30 +53,61 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
 
     // 1) Discover repos
     const repos = this.workspace.listRepos();
-    console.log(`[node-droid] found ${repos.length} repos`);
+    console.log(`🤖 found ${repos.length} repos`);
     if (!repos.length || this.isShuttingDown) return;
 
     for(const repo of repos) { 
+
+      const runId = getRunId();
+      console.log(`🤖 Repo:${repo.id} RunId:${runId}`);
 
       // 2) Set repo context
       const llmProfile = null; // TODO: usare LLMProfileResolverService
       const ctx = this.repoContext.setRepo(repo, llmProfile);
       if (this.isShuttingDown) return;
 
-      // 3) Ensure clone + checkout base
+      // 3) Ensure clone
       this.git.ensureCloned(repo.config.remote);
-      this.git.checkout(repo.config.baseBranch);
-      this.git.fetch();
       if (this.isShuttingDown) return;
 
       // 4) Remote delta (robusto)
-      const delta = this.git.getRemoteDelta(repo.config.baseBranch);
+      const updates = this.git.getLastCommits(repo.config.baseBranch);
+      console.log(updates);
       if (this.isShuttingDown) return;
-      if (delta.error) { this.logger.warn(`Git delta error: ${delta.error}`); return; }
+      if (updates.error) { this.logger.warn(`Get Updates error: ${updates.error}`); continue; }
+      if (updates.branch !== repo.config.baseBranch) { this.logger.warn(`Get Updates error: folder is not on the correct branch`); continue; }
+      if (updates.files.length===0) { this.logger.info(`branch is up to date`); continue; }
 
+      const commitAi = updates.commits.find(c => c.includes(ENV.AI_COMMIT_TAG));
+      if (!commitAi) continue;
 
-      // 5) Bootstrap run
-      const runId = Date.now().toString();
+      this.git.pull(repo.config.baseBranch);
+
+      // 5) File scoping from remote delta
+      if (this.isShuttingDown) return;
+
+      // 6) Task extraction
+      let tasks: Task[] = [];
+      for (const file of updates.files) {
+        if (this.isShuttingDown) break;
+        if (!file.endsWith('.ts') && !file.endsWith(ENV.AI_TODO_FILE)) continue;
+
+        const content = readRepoFileSafe(ctx.codePath, file);
+        if (!content) continue;
+
+        const _tasks = await this.taskExtraction.extractFromFile(file, content);
+        console.log(_tasks);
+        tasks = tasks.concat(_tasks);
+      }
+
+      // controllo se ci sono task e allora procedo, altrimenti skippo
+      if (tasks.length === 0) {
+        console.log(`🤖 No tasks extracted; skipping run`);
+        continue;
+      }
+
+      // 7) Bootstrap run
+     
       const branch = `${ENV.AI_BRANCH_PREFIX}/${runId}`;
 
       this.runState.reset();
@@ -94,49 +121,28 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         return;
       }
 
-      // 6) File scoping from remote delta
-      const changedFiles = extractFilePaths(delta.files);
-      if (this.isShuttingDown) return;
-
-      // 7) Task extraction
-      let rawTasks: RawTask[] = [];
-      for (const file of changedFiles) {
-        if (this.isShuttingDown) break;
-        if (!file.endsWith('.ts') && file !== ENV.AI_TODO_FILE) continue;
-
-        const content = readRepoFileSafe(ctx.codePath, file);
-        if (!content) continue;
-
-        const tasks = await this.taskExtraction.extractFromFile(file, content);
-        rawTasks = rawTasks.concat(tasks);
-      }
-
-      const tasks = this.taskNormalization.normalize(rawTasks);
-      this.taskQueue.set(tasks);
-
       // 8) Task loop (Politica B)
-      while (this.taskQueue.hasNext()) {
+      for (const task of tasks) {
         if (this.isShuttingDown) {
           this.logger.warn('Shutdown requested: no new tasks will be started');
           this.runState.setStatus('INTERRUPTED');
           break;
         }
 
-        const task = this.taskQueue.next();
-        if (!task) break;
-
         const result = await this.taskExecutor.execute(task);
 
-        if (result === 'DONE') this.taskQueue.markDone(task.id);
+        console.log(task,result)
+
+        if (result === 'DONE') task.status = 'DONE';
         if (result === 'FAILED') {
-          this.taskQueue.markFailed(task.id);
+          task.status = 'FAILED';
           this.runState.setStatus('FAILED');
           break;
         }
 
         if (result === 'INTERRUPTED') {
-          this.logger.warn(`Task ${task.id} interrupted; stopping run`);
-          this.taskQueue.markFailed(task.id);
+          this.logger.warn(`Task [${task.title}] interrupted; stopping run`);
+          task.status = 'FAILED';
           this.runState.setStatus('INTERRUPTED');
           break;
         }
@@ -155,13 +161,18 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         return;
       }
 
+      this.fileSystemTool.createFile({ path: ".ai.log.txt", content: `# AI Tasks\n\nRun ${runId} completed with status: ${status}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}\n` });
+
       // 10) Commit + push
-      this.git.commit(`[ai] run ${runId}`);
+      this.git.commit(`Job DONE`);
       this.git.push(branch);
       if (this.isShuttingDown) return;
 
-      // 11) MR
-      await this.mr.create({ branch, runId });
+      const title = `AI Automation Run ${runId}`;
+      const body = `This PR was automatically created by node-droid AI automation.\n\nRun ID: ${runId}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}`;
+
+      // 11) Pull Request
+      await this.git.createPR(repo.config.baseBranch, branch, title, body, repo.config.token);
 
       this.logger.runCompleted();
       this.runState.setStatus('COMPLETED');

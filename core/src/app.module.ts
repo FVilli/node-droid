@@ -5,8 +5,6 @@ import { WorkspaceService } from './services/workspace.service';
 import { RepoContextService } from './services/repo-context.service';
 import { GitService } from './services/git.service';
 import { TaskExtractionService } from './services/task-extraction.service';
-import { TaskNormalizationService } from './services/task-normalization.service';
-import { TaskQueueService } from './services/task-queue.service';
 import { TaskExecutorService } from './services/task-executor.service';
 import { ToolRegistryService } from './services/tool-registry.service';
 import { FileSystemToolService } from './services/filesystem-tool.service';
@@ -15,7 +13,6 @@ import { LLMProfileResolverService } from './services/llm-profile-resolver.servi
 import { PromptTemplateService } from './services/prompt-template.service';
 import { BuildService } from './services/build.service';
 import { RunLoggerService } from './services/run-logger.service';
-import { MergeRequestService } from './services/merge-request.service';
 
 @Module({
   providers: [
@@ -25,8 +22,6 @@ import { MergeRequestService } from './services/merge-request.service';
     RepoContextService,
     GitService,
     TaskExtractionService,
-    TaskNormalizationService,
-    TaskQueueService,
     TaskExecutorService,
     ToolRegistryService,
     FileSystemToolService,
@@ -35,7 +30,6 @@ import { MergeRequestService } from './services/merge-request.service';
     PromptTemplateService,
     BuildService,
     RunLoggerService,
-    MergeRequestService,
   ],
 })
 export class AppModule {}

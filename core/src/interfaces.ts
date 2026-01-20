@@ -2,7 +2,7 @@ import { TaskPriority, TaskSource, TaskStatus } from './types';
 
 /* ---------- Repo & Workspace ---------- */
 
-export interface RepoDefinition { id: string; remote: string; baseBranch: string; buildCommand?: string; llm?: LLMProfileOverride; agent?: RepoAgentPolicy; triggers?: { commitPrefix?: string; }; }
+export interface RepoDefinition { id: string; remote: string; baseBranch: string; buildCommand?: string; llm?: LLMProfileOverride; agent?: RepoAgentPolicy; triggers?: { commitPrefix?: string; }; token?:string; }
 
 export interface RepoDescriptor { id: string; path: string; config: RepoDefinition; }
 
@@ -24,12 +24,7 @@ export interface RepoAgentPolicy { maxTaskRetries?: number; stopOnFailure?: bool
 
 /* ---------- Tasks ---------- */
 
-export interface RawTask { title: string; description?: string; source: string; file?: string; line?: number; }
-
-export interface Task {
-  id: string; title: string; description?: string; source: string; file?: string; line?: number;
-  relatedFiles?: string[]; status: TaskStatus; attempts: number;
-}
+export interface Task { title: string; description: string; source: string; file?: string; line?: number; status?: TaskStatus; attempts?: number; relatedFiles?: string[]; }
 
 /* ---------- Task Execution ---------- */
 
@@ -49,7 +44,7 @@ export interface BuildResult { success: boolean; exitCode: number; stdout: strin
 
 export interface GitDiffSummary { added: string[]; modified: string[]; removed: string[]; }
 export interface GitCommitInfo { hash: string; author: string; message: string; timestamp: string; }
-export interface GitRemoteDelta { branch: string; commits: string[]; files: string[]; error?: string; }
+export interface GitRemoteUpdates { branch: string; commits: string[]; files: string[]; error?: string; }
 
 /* ---------- Run ---------- */
 

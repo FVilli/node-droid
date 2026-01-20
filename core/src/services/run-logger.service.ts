@@ -32,7 +32,7 @@ export class RunLoggerService {
 
   // ---- Task events ----
 
-  taskStart(task: Task) { this.section(`Task ${task.id}`); this.info(task.title); }
+  taskStart(task: Task) { this.section(`Task [${task.title}]`); this.info(task.title); }
   taskAttempt(id: string, n: number) { this.info(`Attempt ${n} for ${id}`); }
   taskDone(id: string) { this.info(`Done: ${id}`); }
   taskFailed(id: string) { this.error(`Failed: ${id}`); }

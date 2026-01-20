@@ -8,12 +8,12 @@ import { RepoDescriptor, RepoDefinition } from '../interfaces';
 export class WorkspaceService {
 
   listRepos(): RepoDescriptor[] {
-    if (!fs.existsSync(ENV.FOLDER_STORAGE)) return [];
-    return fs.readdirSync(ENV.FOLDER_STORAGE).map(id => this.loadRepo(id)).filter(Boolean) as RepoDescriptor[];
+    if (!fs.existsSync(ENV.WORKSPACE_FOLDER)) return [];
+    return fs.readdirSync(ENV.WORKSPACE_FOLDER).map(id => this.loadRepo(id)).filter(Boolean) as RepoDescriptor[];
   }
 
   loadRepo(id: string): RepoDescriptor | null {
-    const root = path.join(ENV.FOLDER_STORAGE, id);
+    const root = path.join(ENV.WORKSPACE_FOLDER, id);
     const configPath = path.join(root, 'repo.json');
     if (!fs.existsSync(root) || !fs.existsSync(configPath)) return null;
     const raw = fs.readFileSync(configPath, 'utf-8');

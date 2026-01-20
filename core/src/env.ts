@@ -10,8 +10,8 @@ export abstract class ENV {
   static readonly APPNAME = name;
   static readonly PORT = parseInt(process.env.PORT || '3456');
 
-  static readonly FOLDER_STORAGE = process.env.FOLDER_STORAGE || (process.cwd() === '/app' ? '/app/workspace' : path.join(process.cwd(), './workspace'));
-  static readonly WATCH_INTERVAL = parseInt(process.env.WATCH_INTERVAL || '10000');
+  static readonly WORKSPACE_FOLDER = process.env.WORKSPACE_FOLDER || (process.cwd() === '/app' ? '/app/workspace' : path.join(process.cwd(), '../workspace'));
+  static readonly WATCH_INTERVAL = parseInt(process.env.WATCH_INTERVAL || '60000');
 
   static readonly LLM_API_URL = process.env.LLM_API_URL || 'http://localhost:8000/v1';
   static readonly LLM_API_KEY = process.env.LLM_API_KEY || 'dummy';

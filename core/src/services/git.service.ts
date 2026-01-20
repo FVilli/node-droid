@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ENV } from '../env';
-import { GitRemoteDelta } from '../interfaces';
-import { extractTag, splitPipe } from '../libs/utils';
+import { GitRemoteUpdates } from '../interfaces';
+import { extractTag, normalizeCommits, normalizeGitFiles, splitPipe } from '../libs/utils';
 import { RunLoggerService } from './run-logger.service';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
@@ -9,6 +9,7 @@ import { RepoContextService } from './repo-context.service';
 
 @Injectable()
 export class GitService {
+
   constructor(
     private readonly logger: RunLoggerService,
     private readonly repoContext: RepoContextService,
@@ -17,7 +18,10 @@ export class GitService {
   // --- helpers ---
   private run(cmd: string) {
     const { codePath } = this.repoContext.get();
-    return execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
+    //console.log(`[EXEC] ${cmd} (in ${codePath})`);
+    const rv = execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
+    //console.log(rv);
+    return rv;
   }
 
   private runRoot(cmd: string) {
@@ -55,6 +59,11 @@ export class GitService {
     this.run(`git add -A && git commit -m "${msg}"`);
   }
 
+  pull(branch: string) {
+    this.logger.info(`git pull origin ${branch}`);
+    this.run(`git pull origin ${branch}`);
+  }
+
   push(branch: string) {
     if (ENV.NO_REMOTE_SIDE_EFFECTS) {
       this.logger.info(`[DRY] Would push ${branch}`);
@@ -66,7 +75,7 @@ export class GitService {
 
   // --- robust remote delta (tag-based) ---
 
-  getRemoteDelta(baseBranch: string): GitRemoteDelta {
+  getLastCommits(baseBranch: string): GitRemoteUpdates {
     const cmd = `
       git checkout ${baseBranch} 2>/dev/null && git fetch origin 2>/dev/null && {
         echo "<RESULT>";
@@ -78,9 +87,17 @@ export class GitService {
     `;
     const out = this.run(cmd.replace(/\s+/g, ' ').trim());
     const branch = extractTag(out, 'BRANCH');
-    const commits = splitPipe(extractTag(out, 'COMMITS'));
-    const files = splitPipe(extractTag(out, 'FILES'));
+    const commits = normalizeCommits(splitPipe(extractTag(out, 'COMMITS')));
+    const files = normalizeGitFiles(splitPipe(extractTag(out, 'FILES')));
     const error = extractTag(out, 'ERROR');
     return { branch: branch || '', commits, files, error: error || undefined };
+  }
+
+  createPR(baseBranch: string, branch: string, title: string, body: string, token?: string) {
+    let cmd = `gh pr create --title "${title}" --body "${body}" --base ${baseBranch} --head ${branch}`;
+    if (token) cmd = `export GH_TOKEN="${token}" && ` + cmd;
+    const rv = this.run(cmd);
+    console.log(rv);
+    return rv;
   }
 }

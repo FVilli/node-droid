@@ -20,7 +20,9 @@ export class TaskExecutorService {
   ) {}
 
   async execute(task: Task): Promise<TaskOutcome> {
-    this.runState.setCurrentTask(task.id);
+    return 'DONE';
+    
+    this.runState.setCurrentTask(task.title);
 
     if (ENV.NO_LLM) {
       this.logger.info(`[DRY] Would execute task: ${task.title}`);
@@ -33,35 +35,35 @@ export class TaskExecutorService {
 
     for (let i = 0; i < maxRetries; i++) {
       if (this.runState.isShuttingDown()) {
-        this.logger.warn(`Task ${task.id} interrupted before attempt ${i + 1}`);
+        this.logger.warn(`Task [${task.title}] interrupted before attempt ${i + 1}`);
         return 'INTERRUPTED';
       }
 
       this.runState.incAttempt();
-      this.logger.taskAttempt(task.id, i + 1);
+      this.logger.taskAttempt(task.title, i + 1);
 
       const ok = await this.runOnce(task);
-      if (ok) { this.logger.taskDone(task.id); return 'DONE'; }
+      if (ok) { this.logger.taskDone(task.title); return 'DONE'; }
 
       if (this.runState.isShuttingDown()) {
-        this.logger.warn(`Task ${task.id} interrupted after execution step`);
+        this.logger.warn(`Task [${task.title}] interrupted after execution step`);
         return 'INTERRUPTED';
       }
 
       const buildRes = await this.build.run(ENV.BUILD_CMD);
-      if (buildRes.success) { this.logger.taskDone(task.id); return 'DONE'; }
+      if (buildRes.success) { this.logger.taskDone(task.title); return 'DONE'; }
 
-      this.logger.taskBuildFailed(task.id, buildRes);
+      this.logger.taskBuildFailed(task.title, buildRes);
 
       if (this.runState.isShuttingDown()) {
-        this.logger.warn(`Task ${task.id} interrupted before retry`);
+        this.logger.warn(`Task [${task.title}] interrupted before retry`);
         return 'INTERRUPTED';
       }
 
       await this.notifyLLMFailure(task, buildRes);
     }
 
-    this.logger.taskFailed(task.id);
+    this.logger.taskFailed(task.title);
     return 'FAILED';
   }
 
@@ -73,7 +75,7 @@ export class TaskExecutorService {
 
   private async notifyLLMFailure(task: Task, err: any) {
     if (this.runState.isShuttingDown()) return;
-    this.logger.warn(`Notifying LLM about failure for ${task.id}`);
+    this.logger.warn(`Notifying LLM about failure for [${task.title}]`);
     // TODO: invio contesto errore all’LLM
   }
 }
