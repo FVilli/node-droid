@@ -76,7 +76,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: core
-          file: Dockerfile
+          file: core/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ needs.meta.outputs.repo }}/core:${{ needs.meta.outputs.tag }}
