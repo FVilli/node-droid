@@ -44,6 +44,11 @@ jobs:
             out.write(f"tag={tag}\n")
           PY
 
+      - name: Compute lowercase image repo
+        id: image
+        run: |
+          echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GHCR
         if: steps.meta.outputs.tag != ''
         uses: docker/login-action@v3
@@ -63,4 +68,6 @@ jobs:
           context: .
           file: core/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/core:${{ steps.meta.outputs.tag }}
+          tags: |
+            ghcr.io/${{ steps.image.outputs.repo }}/core:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.image.outputs.repo }}/core:latest
