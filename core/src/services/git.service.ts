@@ -95,7 +95,8 @@ export class GitService {
 
   createPR(baseBranch: string, branch: string, title: string, body: string, token?: string) {
     let cmd = `gh pr create --title "${title}" --body "${body}" --base ${baseBranch} --head ${branch}`;
-    if (token) cmd = `export GH_TOKEN="${token}" && ` + cmd;
+    const ghToken = token || process.env.GH_TOKEN;
+    if (ghToken) cmd = `export GH_TOKEN="${ghToken}" && ` + cmd;
     const rv = this.run(cmd);
     console.log(rv);
     return rv;

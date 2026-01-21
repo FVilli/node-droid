@@ -44,7 +44,7 @@ LLMProfileResolverService
 ### Responsabilità
 - Risolve quale LLM usare:
   - default ENV
-  - override repo.json
+  - override repo.yml
 
 ### Input
 - RepoContext

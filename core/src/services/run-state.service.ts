@@ -17,6 +17,7 @@ export class RunStateService {
   setStatus(status: RunStatus) { this.status = status; }
   setContext(ctx: RunContext) { this.context = ctx; }
   setCurrentTask(taskId?: string) { this.currentTaskId = taskId; this.attempt = 0; }
+  resetAttempt() { this.attempt = 0; }
   incAttempt() { this.attempt++; }
 
   getPhase() { return this.phase; }

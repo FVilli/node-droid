@@ -11,8 +11,11 @@ import { FileSystemToolService } from './services/filesystem-tool.service';
 import { LLMClientService } from './services/llm-client.service';
 import { LLMProfileResolverService } from './services/llm-profile-resolver.service';
 import { PromptTemplateService } from './services/prompt-template.service';
+import { PromptService } from './services/prompt.service';
 import { BuildService } from './services/build.service';
 import { RunLoggerService } from './services/run-logger.service';
+import { RepomixService } from './services/repomix.service';
+import { AIInstructionsService } from './services/ai-instructions.service';
 
 @Module({
   providers: [
@@ -28,8 +31,11 @@ import { RunLoggerService } from './services/run-logger.service';
     LLMClientService,
     LLMProfileResolverService,
     PromptTemplateService,
+    PromptService,
     BuildService,
     RunLoggerService,
+    RepomixService,
+    AIInstructionsService,
   ],
 })
 export class AppModule {}

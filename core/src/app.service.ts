@@ -10,8 +10,9 @@ import { TaskExtractionService } from './services/task-extraction.service';
 import { TaskExecutorService } from './services/task-executor.service';
 import { RunLoggerService } from './services/run-logger.service';
 import { Task } from './interfaces';
-import { title } from 'process';
 import { FileSystemToolService } from './services/filesystem-tool.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class AppService implements OnApplicationBootstrap, BeforeApplicationShutdown {
@@ -122,6 +123,7 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
       }
 
       // 8) Task loop (Politica B)
+      let hadFailures = false;
       for (const task of tasks) {
         if (this.isShuttingDown) {
           this.logger.warn('Shutdown requested: no new tasks will be started');
@@ -136,8 +138,8 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         if (result === 'DONE') task.status = 'DONE';
         if (result === 'FAILED') {
           task.status = 'FAILED';
+          hadFailures = true;
           this.runState.setStatus('FAILED');
-          break;
         }
 
         if (result === 'INTERRUPTED') {
@@ -148,6 +150,8 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         }
       }
 
+      await this.cleanupTaskMarkers(tasks, ctx.codePath);
+
       // 9) Finalization
       const status = this.runState.getStatus();
 
@@ -156,9 +160,10 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         return;
       }
 
-      if (status === 'FAILED') {
-        this.logger.runFailed('Task failed; MR will not be created');
-        return;
+      if (status === 'FAILED' || hadFailures) {
+        this.logger.runFailed('One or more tasks failed');
+      } else {
+        this.logger.runCompleted();
       }
 
       this.fileSystemTool.createFile({ path: ".ai.log.txt", content: `# AI Tasks\n\nRun ${runId} completed with status: ${status}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}\n` });
@@ -173,9 +178,106 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
 
       // 11) Pull Request
       await this.git.createPR(repo.config.baseBranch, branch, title, body, repo.config.token);
-
-      this.logger.runCompleted();
-      this.runState.setStatus('COMPLETED');
+      if (status !== 'FAILED' && !hadFailures) {
+        this.runState.setStatus('COMPLETED');
+      }
     }
+  }
+
+  private async cleanupTaskMarkers(tasks: Task[], repoPath: string) {
+    const mdFiles = new Set<string>();
+    const tsFileTasks = new Map<string, Array<{ line?: number; title: string }>>();
+
+    for (const task of tasks) {
+      if (!task.file) continue;
+      if (task.source === 'md' && task.file.endsWith(ENV.AI_TODO_FILE)) {
+        mdFiles.add(task.file);
+      }
+      if (task.source === 'ts' && task.file.endsWith('.ts')) {
+        if (!tsFileTasks.has(task.file)) tsFileTasks.set(task.file, []);
+        tsFileTasks.get(task.file)?.push({ line: task.line, title: task.title });
+      }
+    }
+
+    for (const file of mdFiles) {
+      const full = this.resolveRepoPath(repoPath, file);
+      if (!full) continue;
+      try {
+        fs.unlinkSync(full);
+        this.logger.info(`Removed task file: ${file}`);
+      } catch (err: any) {
+        this.logger.warn(`Failed to remove task file ${file}: ${err.message || err}`);
+      }
+    }
+
+    for (const [file, tasksForFile] of tsFileTasks.entries()) {
+      const full = this.resolveRepoPath(repoPath, file);
+      if (!full) continue;
+      try {
+        const original = fs.readFileSync(full, 'utf-8');
+        const cleaned = this.stripTaskCommentsByLineOrTitle(original, ENV.AI_TODO_COMMENT, tasksForFile);
+        if (cleaned !== original) {
+          fs.writeFileSync(full, cleaned, 'utf-8');
+          this.logger.info(`Removed task comments from: ${file}`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to clean task comments in ${file}: ${err.message || err}`);
+      }
+    }
+  }
+
+  private resolveRepoPath(repoPath: string, file: string): string | null {
+    const full = path.resolve(repoPath, file);
+    if (!full.startsWith(path.resolve(repoPath))) return null;
+    return full;
+  }
+
+  private stripTaskCommentsByLineOrTitle(
+    content: string,
+    tag: string,
+    tasks: Array<{ line?: number; title: string }>
+  ): string {
+    const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const lineSet = new Set(tasks.map(t => t.line).filter(Boolean) as number[]);
+    const titles = tasks.map(t => t.title).filter(Boolean);
+    const out: string[] = [];
+    const src = content.split('\n');
+
+    for (let i = 0; i < src.length; i++) {
+      const lineNumber = i + 1;
+      const line = src[i];
+      const hasTag = new RegExp(escaped).test(line);
+
+      const matchesLine = lineSet.has(lineNumber);
+      const matchesTitle = titles.some(t => line.includes(t));
+
+      if (!hasTag || (!matchesLine && !matchesTitle)) {
+        out.push(line);
+        continue;
+      }
+
+      if (line.includes(`//`) && matchesTitle) {
+        continue;
+      }
+
+      if (line.includes('/*')) {
+        let block = line;
+        let j = i;
+        while (j < src.length && !src[j].includes('*/')) {
+          j++;
+          block += '\n' + (src[j] || '');
+        }
+        const blockHasTag = new RegExp(escaped).test(block);
+        const blockHasTitle = titles.some(t => block.includes(t));
+        if (blockHasTag && blockHasTitle) {
+          i = j;
+          continue;
+        }
+      }
+
+      out.push(line);
+    }
+
+    return out.join('\n');
   }
 }

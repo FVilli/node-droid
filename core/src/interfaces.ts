@@ -2,7 +2,7 @@ import { TaskPriority, TaskSource, TaskStatus } from './types';
 
 /* ---------- Repo & Workspace ---------- */
 
-export interface RepoDefinition { id: string; remote: string; baseBranch: string; buildCommand?: string; llm?: LLMProfileOverride; agent?: RepoAgentPolicy; triggers?: { commitPrefix?: string; }; token?:string; }
+export interface RepoDefinition { id: string; remote: string; baseBranch: string; buildCommand?: string; llm?: LLMProfileOverride; agent?: RepoAgentPolicy; triggers?: { commitPrefix?: string; }; token?:string; repomix?: RepomixConfig; }
 
 export interface RepoDescriptor { id: string; path: string; config: RepoDefinition; }
 
@@ -10,6 +10,7 @@ export interface RepoContext {
   id: string; rootPath: string; codePath: string; aiPath: string; sshPath?: string;
   remote: string; baseBranch: string; buildCommand: string;
   llmProfile: LLMProfile; agentPolicy: RepoAgentPolicy;
+  repomix?: RepomixConfig;
 }
 
 /* ---------- LLM ---------- */
@@ -24,7 +25,7 @@ export interface RepoAgentPolicy { maxTaskRetries?: number; stopOnFailure?: bool
 
 /* ---------- Tasks ---------- */
 
-export interface Task { title: string; description: string; source: string; file?: string; line?: number; status?: TaskStatus; attempts?: number; relatedFiles?: string[]; }
+export interface Task { id:string; title: string; description: string; source: string; file?: string; line?: number; status?: TaskStatus; attempts?: number; relatedFiles?: string[]; result?: string; }
 
 /* ---------- Task Execution ---------- */
 
@@ -60,3 +61,21 @@ export interface RunLogSection { title: string; content: string; }
 export interface CommitSemanticAnalysis { type: string; summary: string; riskLevel?: 'low' | 'medium' | 'high'; notes?: string; }
 export interface DiffSummary { summary: string; keyChanges: string[]; }
 export interface RunSummary { summary: string; completedTasks: number; failedTasks: number; notes?: string; }
+
+/* ---------- Repomix ---------- */
+
+export interface RepomixConfig {
+  enabled?: boolean;
+  maxContextSize?: number;
+  style?: 'markdown' | 'plain' | 'xml' | 'json';
+  include?: string[];
+  ignore?: {
+    useGitignore?: boolean;
+    useDefaultPatterns?: boolean;
+    customPatterns?: string[];
+  };
+  removeComments?: boolean;
+  removeEmptyLines?: boolean;
+  showLineNumbers?: boolean;
+  topFilesLength?: number;
+}

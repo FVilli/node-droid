@@ -11,7 +11,7 @@ WorkspaceService
 - Scansiona la cartella `ENV.FOLDER_STORAGE`
 - Scopre i repository disponibili
 - Valida la struttura di ogni repo
-- Carica e parse `repo.json`
+- Carica e parse `repo.yml`
 - Espone la lista dei repo disponibili
 
 ### Input
@@ -44,7 +44,7 @@ RepoContextService
 - Gestisce il contesto del repo attivo
 - Normalizza la configurazione:
   - ENV defaults
-  - override da repo.json
+  - override da repo.yml
 - Espone path assoluti:
   - root repo
   - cartella `code/`

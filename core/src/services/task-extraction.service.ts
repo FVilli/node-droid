@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Task } from '../interfaces';
 import { ENV } from '../env';
+import { nanoid } from 'nanoid';
+import * as path from 'path';
 
 @Injectable()
 export class TaskExtractionService {
@@ -24,7 +26,7 @@ export class TaskExtractionService {
         const body = line.split(tag)[1]?.trim();
         if (!body) continue;
         const [title, ...rest] = body.split('|').map(s => s.trim());
-        tasks.push({ source: 'ts', file, line: i + 1, title, description: rest.join(' | ') || '' });
+        tasks.push({ id: nanoid(4), source: 'ts', file, line: i + 1, title, description: rest.join(' | ') || '', relatedFiles: [file] });
       }
 
       // /* ai: ... */
@@ -56,7 +58,7 @@ export class TaskExtractionService {
         if (!l.startsWith('-')) continue;
         const body = l.replace(/^-/, '').trim();
         const [title, ...rest] = body.split('|').map(s => s.trim());
-        out.push({ source: 'ts', file, line, title, description: rest.join(' | ') || '' });
+        out.push({ id: nanoid(4) ,source: 'ts', file, line, title, description: rest.join(' | ') || '', relatedFiles: [file] });
       }
       return out;
     }
@@ -66,7 +68,7 @@ export class TaskExtractionService {
     const [title, ...descInline] = first.split('|').map(s => s.trim());
     const desc = [...descInline, ...rest].join('\n').trim();
 
-    out.push({ source: 'ts', file, line, title, description: desc || '' });
+    out.push({ id: nanoid(4) ,source: 'ts', file, line, title, description: desc || '', relatedFiles: [file] });
     return out;
   }
 
@@ -87,11 +89,13 @@ export class TaskExtractionService {
         const [title, ...rest] = body.split('|').map(s => s.trim());
 
         current = {
+          id: nanoid(4),
           source: 'md',
           file,
           line: i + 1,
           title,
-          description: rest.join(' | ') || ''
+          description: rest.join(' | ') || '',
+          relatedFiles: this.getRelatedFilesForMD(file)
         };
         continue;
       }
@@ -114,5 +118,18 @@ export class TaskExtractionService {
 
     if (current) tasks.push(current);
     return tasks;
+  }
+
+  private getRelatedFilesForMD(file: string): string[] {
+    const dir = path.dirname(file);
+    const prefix = dir === '.' ? '' : `${dir}/`;
+    return [
+      `${prefix}*.ts`,
+      `${prefix}*.js`,
+      `${prefix}*.tsx`,
+      `${prefix}*.jsx`,
+      `${prefix}*.json`,
+      `${prefix}*.md`
+    ];
   }
 }

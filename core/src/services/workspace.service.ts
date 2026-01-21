@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ENV } from '../env';
 import { RepoDescriptor, RepoDefinition } from '../interfaces';
+import { parse } from 'yaml';
 
 @Injectable()
 export class WorkspaceService {
@@ -14,10 +15,10 @@ export class WorkspaceService {
 
   loadRepo(id: string): RepoDescriptor | null {
     const root = path.join(ENV.WORKSPACE_FOLDER, id);
-    const configPath = path.join(root, 'repo.json');
+    const configPath = path.join(root, 'repo.yml');
     if (!fs.existsSync(root) || !fs.existsSync(configPath)) return null;
     const raw = fs.readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(raw) as RepoDefinition;
+    const config = parse(raw) as RepoDefinition;
     return { id, path: root, config };
   }
 }
