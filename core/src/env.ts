@@ -3,7 +3,7 @@ import { version, name } from '../package.json';
 import * as path from 'path';
 
 dotenv.config();
-const revision = 4;
+const revision = 5;
 
 export abstract class ENV {
   static readonly VERSION = `${version}.${revision}`;
