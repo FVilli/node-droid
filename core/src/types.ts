@@ -1,24 +1,143 @@
-export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
-export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type TaskSource = 'TODO_COMMENT' | 'TODO_FILE' | 'COMMIT_MESSAGE' | 'MANUAL';
-export type TaskOutcome = 'DONE' | 'FAILED' | 'INTERRUPTED';
-export type RunPhase = 'IDLE' | 'BOOTSTRAP' | 'CONTEXT_EXTRACTION' | 'TASK_EXTRACTION' | 'TASK_EXECUTION' | 'FINALIZATION' | 'DONE' | 'FAILED';
+export type TaskOutcome = 'TODO' |'DONE' | 'FAILED' | 'INTERRUPTED';
+export type RunPhase =
+  | 'IDLE'
+  | 'BOOTSTRAP'
+  | 'CONTEXT_EXTRACTION'
+  | 'TASK_EXTRACTION'
+  | 'TASK_EXECUTION'
+  | 'FINALIZATION'
+  | 'DONE'
+  | 'FAILED';
 export type RunStatus = 'RUNNING' | 'STOPPED' | 'FAILED' | 'COMPLETED' | 'INTERRUPTED';
-export type AgentDecision = 'CONTINUE' | 'STOP' | 'RETRY' | 'SKIP' | 'FAIL';
-export type ToolName = 'list_files' | 'read_file' | 'apply_patch' | 'create_file' | 'create_directory' | 'delete_directory';
-export type LLMRole = 'system' | 'user' | 'assistant' | 'tool';
-export type LLMCompletionStatus = 'COMPLETED' | 'TOOL_CALL' | 'FAILED' | 'TIMEOUT';
-export type LLMProvider = 'openai-compatible';
-export type BuildStatus = 'SUCCESS' | 'FAILED' | 'TIMEOUT';
-export type BuildErrorCategory = 'TYPESCRIPT' | 'SYNTAX' | 'MISSING_IMPORT' | 'LINT' | 'TEST' | 'UNKNOWN';
-export type GitChangeType = 'ADDED' | 'MODIFIED' | 'REMOVED';
-export type GitBranchType = 'BASE' | 'AI_RUN' | 'TEMP';
-export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
-export type LogSection = 'HEADER' | 'CONTEXT' | 'TASKS' | 'EXECUTION' | 'BUILD' | 'RESULT' | 'SUMMARY';
-export type MergeRequestStatus = 'OPEN' | 'MERGED' | 'CLOSED' | 'FAILED';
-export type StopPolicy = 'STOP_ON_FIRST_FAILURE' | 'CONTINUE_ON_FAILURE';
-export type RetryPolicy = 'NONE' | 'FIX_ONLY' | 'REPLAN';
-export type ExecutionMode = 'DETERMINISTIC' | 'LLM_GUIDED';
-export type SandboxViolationType = 'PATH_ESCAPE' | 'BINARY_WRITE' | 'OUTSIDE_WORKSPACE';
-export type CommitSemanticType = 'FEATURE' | 'FIX' | 'REFACTOR' | 'DOCS' | 'CHORE' | 'UNKNOWN';
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+/* ---------- Repo & Workspace ---------- */
+
+export interface RepoDefinition {
+  id: string;
+  remote: string;
+  baseBranch: string;
+  buildCommand?: string;
+  llm?: Partial<LLMProfile>;
+  agent?: {
+    maxTaskRetries?: number;
+    stopOnFailure?: boolean;
+    maxToolCallsPerTask?: number;
+  };
+  triggers?: { commitPrefix?: string };
+  token?: string;
+  repomix?: RepomixConfig;
+}
+
+export interface RepoDescriptor { id: string; path: string; config: RepoDefinition; }
+
+export interface RepoContext {
+  id: string;
+  rootPath: string;
+  codePath: string;
+  aiPath: string;
+  sshPath?: string;
+  remote: string;
+  baseBranch: string;
+  buildCommand: string;
+  llmProfile: LLMProfile;
+  agentPolicy: {
+    maxTaskRetries?: number;
+    stopOnFailure?: boolean;
+    maxToolCallsPerTask?: number;
+  };
+  repomix?: RepomixConfig;
+}
+
+/* ---------- LLM ---------- */
+
+export interface LLMProfile {
+  provider: 'openai-compatible';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/* ---------- Tasks ---------- */
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  source: string;
+  file?: string;
+  line?: number;
+  attempts?: number;
+  relatedFiles?: string[];
+  result?: string;
+  status: TaskOutcome;
+}
+
+/* ---------- Tools ---------- */
+
+export interface ToolDefinition { name: string; description: string; parameters: any; }
+export interface ToolCall { name: string; arguments: Record<string, any>; }
+export interface ToolResult { success: boolean; output?: any; error?: string; }
+
+/* ---------- Build ---------- */
+
+export interface BuildResult {
+  success: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+}
+
+/* ---------- Git ---------- */
+
+export interface GitRemoteUpdates { branch: string; commits: string[]; files: string[]; error?: string; }
+
+/* ---------- Run ---------- */
+
+export interface RunContext {
+  runId: string;
+  repoId: string;
+  branchName: string;
+  triggerCommit: { hash: string; author: string; message: string; timestamp: string };
+  startedAt: string;
+}
+
+/* ---------- Logging ---------- */
+
+export type RunEvent = { ts: number; level: 'INFO' | 'WARN' | 'ERROR' | 'DRY'; message: string };
+export type TaskEvent = { ts: number; kind: 'start' | 'attempt' | 'fix-attempt' | 'llm' | 'tool' | 'build' | 'done' | 'failed'; data?: any };
+export type TaskLog = {
+  task: Task;
+  startTs?: number;
+  endTs?: number;
+  status?: string;
+  attempts: number;
+  fixAttempts: number;
+  llmCalls: number;
+  toolCalls: number;
+  filesTouched: Set<string>;
+  events: TaskEvent[];
+};
+
+/* ---------- Summaries (optional) ---------- */
+
+
+/* ---------- Repomix ---------- */
+
+export interface RepomixConfig {
+  enabled?: boolean;
+  maxContextSize?: number;
+  style?: 'markdown' | 'plain' | 'xml' | 'json';
+  include?: string[];
+  ignore?: {
+    useGitignore?: boolean;
+    useDefaultPatterns?: boolean;
+    customPatterns?: string[];
+  };
+  removeComments?: boolean;
+  removeEmptyLines?: boolean;
+  showLineNumbers?: boolean;
+  topFilesLength?: number;
+}

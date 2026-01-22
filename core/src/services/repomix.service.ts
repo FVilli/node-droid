@@ -4,8 +4,9 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { RepoContextService } from './repo-context.service';
-import { RepomixConfig, Task } from '../interfaces';
+import { RepomixConfig, Task } from '../types';
 import { RunLoggerService } from './run-logger.service';
+import { RepomixHelpers } from '../helpers/repomix-helpers';
 
 const execAsync = promisify(exec);
 
@@ -30,16 +31,16 @@ export class RepomixService {
       return null;
     }
 
-    const related = this.getRelatedFiles(task);
+    const related = RepomixHelpers.getRelatedFiles(task);
     if (related.length > 0 && related.length < 20) {
       const focused = await this.generateContext(related, 'focused', cfg);
-      if (focused && focused.length <= this.getMaxContextSize(cfg)) return focused;
+      if (focused && focused.length <= RepomixHelpers.getMaxContextSize(cfg)) return focused;
     }
 
     const full = await this.getCachedOrGenerate();
     if (!full) return null;
-    if (full.length <= this.getMaxContextSize(cfg)) return full;
-    return `${full.slice(0, this.getMaxContextSize(cfg))}\n\n... [context truncated]`;
+    if (full.length <= RepomixHelpers.getMaxContextSize(cfg)) return full;
+    return `${full.slice(0, RepomixHelpers.getMaxContextSize(cfg))}\n\n... [context truncated]`;
   }
 
   private async ensureAvailability(): Promise<void> {
@@ -70,13 +71,6 @@ export class RepomixService {
     return context;
   }
 
-  private getRelatedFiles(task: Task): string[] {
-    const list = new Set<string>();
-    if (task.file) list.add(task.file);
-    for (const f of task.relatedFiles || []) list.add(f);
-    return Array.from(list);
-  }
-
   private async generateContext(
     relatedFiles: string[] | null,
     kind: 'full' | 'focused',
@@ -90,37 +84,7 @@ export class RepomixService {
     const outputPath = path.join(tempDir, `repomix-${kind}-${stamp}.md`);
     const configPath = path.join(tempDir, `repomix-${kind}-${stamp}.config.json`);
 
-    const config: any = {
-      output: {
-        filePath: outputPath,
-        style: cfg.style || 'markdown',
-        removeComments: cfg.removeComments ?? false,
-        removeEmptyLines: cfg.removeEmptyLines ?? true,
-        showLineNumbers: cfg.showLineNumbers ?? false,
-        topFilesLength: cfg.topFilesLength
-      },
-      include: relatedFiles && relatedFiles.length ? relatedFiles : (cfg.include || [
-        '**/*.ts',
-        '**/*.js',
-        '**/*.tsx',
-        '**/*.jsx',
-        '**/*.json',
-        '**/*.md'
-      ]),
-      ignore: {
-        useGitignore: cfg.ignore?.useGitignore ?? true,
-        useDefaultPatterns: cfg.ignore?.useDefaultPatterns ?? true,
-        customPatterns: cfg.ignore?.customPatterns || [
-          'node_modules/**',
-          'dist/**',
-          'build/**',
-          '**/*.test.*',
-          '**/*.spec.*',
-          '**/test/**',
-          '.git/**'
-        ]
-      }
-    };
+    const config: any = RepomixHelpers.buildConfig(cfg, outputPath, relatedFiles);
 
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
 
@@ -143,7 +107,4 @@ export class RepomixService {
     return cfg;
   }
 
-  private getMaxContextSize(cfg: RepomixConfig): number {
-    return cfg.maxContextSize || 30000;
-  }
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Task } from '../interfaces';
+import { Task } from '../types';
 import { LLMClientService } from './llm-client.service';
 import { ToolRegistryService } from './tool-registry.service';
 import { BuildService } from './build.service';
@@ -10,7 +10,8 @@ import { LLMProfileResolverService } from './llm-profile-resolver.service';
 import { RepoContextService } from './repo-context.service';
 import { TaskOutcome } from '../types';
 import { ENV } from 'src/env';
-import { BuildResult } from '../interfaces';
+import { BuildResult } from '../types';
+import { LLMRunner } from '../helpers/llm-runner';
 
 @Injectable()
 export class TaskExecutorService {
@@ -100,82 +101,21 @@ export class TaskExecutorService {
 
   private async runOnceAfterBuildFailure(task: Task, buildRes: BuildResult): Promise<boolean> {
     if (this.runState.isShuttingDown()) return false;
-    this.logger.warn(`Notifying LLM about failure for [${task.title}]`);
+    LLMRunner.warnRetry(this.logger, task);
     const messages = await this.prompt.buildTaskRetryMessages(task, buildRes);
     return this.runLLMLoop(task, messages);
   }
 
   private async runLLMLoop(task: Task, messages: any[]): Promise<boolean> {
     // IMPORTANTE: qui NON controlliamo shutdown a metà di un’operazione atomica
-    const profile = this.llmProfileResolver.resolve(this.repoContext.get());
-    const tools = this.tools.getTools();
     const maxToolCalls = this.repoContext.get().agentPolicy.maxToolCallsPerTask ?? ENV.MAX_TOOL_CALLS_PER_TASK;
-    let toolCallsCount = 0;
-
-    while (toolCallsCount <= maxToolCalls) {
-      const promptSnapshot = messages.map(m => ({ ...m }));
-      const llmStart = Date.now();
-      const response = await this.llm.chat(messages, profile, tools);
-      const llmDuration = Date.now() - llmStart;
-      const message = response?.choices?.[0]?.message;
-
-      if (!message) {
-        task.result = 'No response from LLM';
-        return false;
-      }
-
-      this.logger.taskLLMCall(task, {
-        messages: promptSnapshot,
-        response: { role: message.role, content: message.content, tool_calls: message.tool_calls },
-        durationMs: llmDuration
-      });
-
-      messages.push({
-        role: message.role || 'assistant',
-        content: message.content || null,
-        tool_calls: message.tool_calls || undefined
-      });
-
-      const toolCalls = message.tool_calls || [];
-      if (!toolCalls.length) {
-        task.result = message.content || '';
-        return true;
-      }
-
-      for (const call of toolCalls) {
-        toolCallsCount++;
-        if (toolCallsCount > maxToolCalls) {
-          task.result = 'Max tool calls reached';
-          return false;
-        }
-
-        const name = call.function?.name;
-        if (!name) {
-          task.result = 'Tool call without name';
-          return false;
-        }
-
-        let args: Record<string, any> = {};
-        try {
-          args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
-        } catch (err) {
-          args = {};
-        }
-
-        const toolStart = Date.now();
-        const result = await this.tools.execute({ name, arguments: args });
-        const toolDuration = Date.now() - toolStart;
-        this.logger.taskToolCall(task, { name, args, result, durationMs: toolDuration });
-
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(result)
-        });
-      }
-    }
-
-    task.result = 'Max tool calls reached';
-    return false;
+    return LLMRunner.runLoop(task, messages, {
+      llm: this.llm,
+      tools: this.tools,
+      logger: this.logger,
+      llmProfileResolver: this.llmProfileResolver,
+      repoContext: this.repoContext,
+      maxToolCalls
+    });
   }
 }

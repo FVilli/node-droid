@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { execSync } from 'child_process';
 import { RepoContextService } from './repo-context.service';
-import { BuildResult } from '../interfaces';
+import { BuildResult } from '../types';
 import { ENV } from '../env';
+import { BuildHelpers } from '../helpers/build-helpers';
 
 @Injectable()
 export class BuildService {
@@ -22,9 +23,9 @@ export class BuildService {
     const start = Date.now();
     try {
       const stdout = this._run(BUILD_CMD);
-      return { success: true, exitCode: 0, stdout, stderr: '', durationMs: Date.now() - start };
+      return BuildHelpers.buildSuccess(start, stdout);
     } catch (err: any) {
-      return { success: false, exitCode: err.status || 1, stdout: err.stdout?.toString() || '', stderr: err.stderr?.toString() || '', durationMs: Date.now() - start };
+      return BuildHelpers.buildFailure(start, err);
     }
   }
 

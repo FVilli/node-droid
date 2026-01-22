@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { nanoid } from 'nanoid';
 import * as path from 'path';
 
 export const readRepoFileSafe = (repoPath: string, file: string) => {
@@ -18,10 +19,39 @@ export const readRepoFileSafe = (repoPath: string, file: string) => {
 };
 
 export const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+export const toLocalIso = (date: Date = new Date(), timeZone = 'Europe/Rome') => {
+  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+  const dtf = new Intl.DateTimeFormat('it-IT', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZoneName: 'shortOffset'
+  });
+  const parts = dtf.formatToParts(date);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+  const yyyy = get('year');
+  const mm = get('month');
+  const dd = get('day');
+  const hh = get('hour');
+  const min = get('minute');
+  const ss = get('second');
+  const ms = pad(date.getMilliseconds(), 3);
+  const offsetRaw = get('timeZoneName') || 'GMT+0';
+  const match = offsetRaw.match(/GMT([+-]?)(\d{1,2})(?::(\d{2}))?/);
+  const sign = match?.[1] === '-' ? '-' : '+';
+  const oh = pad(parseInt(match?.[2] || '0', 10));
+  const om = pad(parseInt(match?.[3] || '0', 10));
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}.${ms}${sign}${oh}:${om}`;
+};
 export const extractTag = (s: string, tag: string) => (s.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`)) || [])[1]?.trim();
 export const splitPipe = (s?: string) => s ? s.split('|').map(x => x.trim()).filter(Boolean) : [];
 export const hasTriggerCommit = (commits: string[], prefix = '[ai]') => commits.some(c => c.includes(prefix));
-export const getRunId = () => Math.trunc(Date.now()/60000).toString();
+export const getRunId = () => nanoid(6);
 export const normalizeGitFiles = (files: string[]) => {
   // ['A\tsrc/file-due.ts','A\tsrc/file1.ts','M\tsrc/file1.ts','D\tsrc/file1.ts']
   // TODO: da un array con quella formattazione, restituire un array con i file finali (senza duplicati e senza quelli rimossi)

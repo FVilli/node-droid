@@ -1,0 +1,16 @@
+{
+  "entryPoints": [
+    "src"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+  "tsconfig": "tsconfig.json",
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/test/**"
+  ],
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "includeVersion": true
+}

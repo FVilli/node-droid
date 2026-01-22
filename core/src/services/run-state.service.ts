@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RunPhase, RunStatus } from '../types';
-import { RunContext } from '../interfaces';
+import { RunContext } from '../types';
 
 @Injectable()
 export class RunStateService {

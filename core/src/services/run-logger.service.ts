@@ -2,27 +2,9 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RepoContextService } from './repo-context.service';
-import { BuildResult, Task } from '../interfaces';
+import { BuildResult, RunEvent, Task, TaskEvent, TaskLog } from '../types';
 import { ENV } from '../env';
-
-type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DRY';
-
-type RunEvent = { ts: number; level: LogLevel; message: string; };
-type TaskEventKind = 'start' | 'attempt' | 'fix-attempt' | 'llm' | 'tool' | 'build' | 'done' | 'failed';
-type TaskEvent = { ts: number; kind: TaskEventKind; data?: any; };
-
-type TaskLog = {
-  task: Task;
-  startTs?: number;
-  endTs?: number;
-  status?: string;
-  attempts: number;
-  fixAttempts: number;
-  llmCalls: number;
-  toolCalls: number;
-  filesTouched: Set<string>;
-  events: TaskEvent[];
-};
+import { RunLogFormatters } from '../helpers/run-log-formatters';
 
 @Injectable()
 export class RunLoggerService {
@@ -196,10 +178,10 @@ export class RunLoggerService {
 
     lines.push(`# Run ${this.runId || ''}`.trim());
     if (this.repoId) lines.push(`Repo: ${this.repoId}`);
-    lines.push(`Started: ${this.formatDateTime(startedAt)}`);
-    lines.push(`Ended: ${this.formatDateTime(endedAt)}`);
+    lines.push(`Started: ${RunLogFormatters.formatDateTime(startedAt)}`);
+    lines.push(`Ended: ${RunLogFormatters.formatDateTime(endedAt)}`);
     lines.push(`Status: ${this.runStatus || 'UNKNOWN'}`);
-    lines.push(`Total duration: ${this.formatDuration(endedAt.getTime() - startedAt.getTime())}`);
+    lines.push(`Total duration: ${RunLogFormatters.formatDuration(endedAt.getTime() - startedAt.getTime())}`);
     lines.push('');
     lines.push('## Statistics');
     lines.push('');
@@ -212,11 +194,11 @@ export class RunLoggerService {
     lines.push(`| Total LLM calls | ${this.totalLLMCalls} |`);
     lines.push(`| Total tool calls | ${this.totalToolCalls} |`);
     lines.push(`| Files touched | ${this.getAllTouchedFiles().length} |`);
-    if (this.runReason) lines.push(`| Reason | ${this.escapePipes(this.runReason)} |`);
+    if (this.runReason) lines.push(`| Reason | ${RunLogFormatters.escapePipes(this.runReason)} |`);
     lines.push('');
     const touchedFiles = this.getAllTouchedFiles();
     if (touchedFiles.length) {
-      lines.push(`Files touched: ${this.escapePipes(touchedFiles.join(', '))}`);
+      lines.push(`Files touched: ${RunLogFormatters.escapePipes(touchedFiles.join(', '))}`);
       lines.push('');
     }
     lines.push('### Tasks');
@@ -225,16 +207,16 @@ export class RunLoggerService {
     for (const key of this.taskOrder) {
       const log = this.taskLogs.get(key);
       if (!log) continue;
-      const duration = this.formatDuration(this.getTaskDuration(log));
+      const duration = RunLogFormatters.formatDuration(this.getTaskDuration(log));
       const files = Array.from(log.filesTouched).join(', ');
-      lines.push(`| ${this.escapePipes(log.task.title)} | ${log.status || 'UNKNOWN'} | ${duration} | ${log.attempts} | ${log.fixAttempts} | ${log.llmCalls} | ${log.toolCalls} | ${this.escapePipes(files || '-')} |`);
+      lines.push(`| ${RunLogFormatters.escapePipes(log.task.title)} | ${log.status || 'UNKNOWN'} | ${duration} | ${log.attempts} | ${log.fixAttempts} | ${log.llmCalls} | ${log.toolCalls} | ${RunLogFormatters.escapePipes(files || '-')} |`);
     }
 
     if (this.runEvents.length) {
       lines.push('');
       lines.push('## Run Events');
       for (const ev of this.runEvents) {
-        lines.push(`- [${this.formatTime(new Date(ev.ts))}] ${ev.level}: ${this.escapePipes(ev.message)}`);
+        lines.push(`- [${RunLogFormatters.formatTime(new Date(ev.ts))}] ${ev.level}: ${RunLogFormatters.escapePipes(ev.message)}`);
       }
     }
 
@@ -242,69 +224,19 @@ export class RunLoggerService {
       const log = this.taskLogs.get(key);
       if (!log) continue;
       lines.push('');
-      lines.push(`## Task [${this.escapePipes(log.task.title)}]`);
+      lines.push(`## Task [${RunLogFormatters.escapePipes(log.task.title)}]`);
       lines.push('```json');
       lines.push(JSON.stringify(log.task, null, 2));
       lines.push('```');
       lines.push('');
       lines.push('### Timeline');
       for (const ev of log.events) {
-        lines.push(...this.formatTaskEvent(ev));
+        lines.push(...RunLogFormatters.formatTaskEvent(ev));
       }
     }
 
     lines.push('');
     this.write(lines.join('\n'));
-  }
-
-  private formatTaskEvent(ev: TaskEvent): string[] {
-    const time = this.formatTime(new Date(ev.ts));
-    const lines: string[] = [];
-    switch (ev.kind) {
-      case 'start':
-        lines.push(`- [${time}] Task started`);
-        break;
-      case 'attempt':
-        lines.push(`- [${time}] Attempt ${ev.data?.n}`);
-        break;
-      case 'fix-attempt':
-        lines.push(`- [${time}] Fix attempt ${ev.data?.n}`);
-        break;
-      case 'llm':
-        lines.push(`- [${time}] LLM call (${this.formatDuration(ev.data?.durationMs || 0)})`);
-        lines.push('```json');
-        lines.push(JSON.stringify({ messages: ev.data?.messages, response: ev.data?.response }, null, 2));
-        lines.push('```');
-        break;
-      case 'tool':
-        lines.push(`- [${time}] Tool ${ev.data?.name} (${this.formatDuration(ev.data?.durationMs || 0)})`);
-        lines.push('```json');
-        lines.push(JSON.stringify({ args: ev.data?.args, result: ev.data?.result }, null, 2));
-        lines.push('```');
-        break;
-      case 'build':
-        lines.push(`- [${time}] Build ${ev.data?.phase} (${ev.data?.result?.success ? 'success' : 'failed'}) (${this.formatDuration(ev.data?.result?.durationMs || 0)})`);
-        if (ev.data?.result?.stdout) {
-          lines.push('```');
-          lines.push(ev.data.result.stdout);
-          lines.push('```');
-        }
-        if (ev.data?.result?.stderr) {
-          lines.push('```');
-          lines.push(ev.data.result.stderr);
-          lines.push('```');
-        }
-        break;
-      case 'done':
-        lines.push(`- [${time}] Task done`);
-        break;
-      case 'failed':
-        lines.push(`- [${time}] Task failed`);
-        break;
-      default:
-        lines.push(`- [${time}] ${ev.kind}`);
-    }
-    return lines;
   }
 
   private getTaskDuration(log: TaskLog): number {
@@ -323,33 +255,4 @@ export class RunLoggerService {
     return Array.from(out);
   }
 
-  private formatTime(d: Date): string {
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${hh}:${mm}:${ss}`;
-  }
-
-  private formatDateTime(d: Date): string {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-  }
-
-  private formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms}ms`;
-    const s = ms / 1000;
-    if (s < 60) return `${s.toFixed(1)}s`;
-    const m = Math.floor(s / 60);
-    const rem = s - m * 60;
-    return `${m}m ${rem.toFixed(1)}s`;
-  }
-
-  private escapePipes(s: string): string {
-    return s.replace(/\|/g, '\\|');
-  }
 }

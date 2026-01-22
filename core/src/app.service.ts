@@ -1,7 +1,6 @@
 import { BeforeApplicationShutdown, Injectable, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { ENV } from './env';
-import { getRunId, readRepoFileSafe, sleep } from './libs/utils';
-
+import { getRunId, readRepoFileSafe, sleep, toLocalIso } from './libs/utils';
 import { RunStateService } from './services/run-state.service';
 import { WorkspaceService } from './services/workspace.service';
 import { RepoContextService } from './services/repo-context.service';
@@ -9,10 +8,11 @@ import { GitService } from './services/git.service';
 import { TaskExtractionService } from './services/task-extraction.service';
 import { TaskExecutorService } from './services/task-executor.service';
 import { RunLoggerService } from './services/run-logger.service';
-import { Task } from './interfaces';
+import { Task } from './types';
 import { FileSystemToolService } from './services/filesystem-tool.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import ora from 'ora';
 
 @Injectable()
 export class AppService implements OnApplicationBootstrap, BeforeApplicationShutdown {
@@ -44,9 +44,20 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
     while (!this.isShuttingDown) {
       try { await this.tick(); }
       catch (err) { console.error('[node-droid] fatal error:', err); }
-      if (!this.isShuttingDown) await sleep(ENV.WATCH_INTERVAL);
+      await this.waitForNextTick();
     }
     console.log('[node-droid] loop terminated');
+  }
+
+  private async waitForNextTick() {
+    let remaining = Math.max(10, ENV.WATCH_INTERVAL);
+    const spinner = ora({ text: `...` }).start();
+    while (remaining > 0 && !this.isShuttingDown) {
+      spinner.text = `${remaining}`;
+      await sleep(1000);
+      remaining--;
+    }
+    spinner.stop();
   }
 
   private async tick() {
@@ -54,13 +65,13 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
 
     // 1) Discover repos
     const repos = this.workspace.listRepos();
-    console.log(`🤖 found ${repos.length} repos`);
+    console.log(`🔍 found ${repos.length} repos`);
     if (!repos.length || this.isShuttingDown) return;
 
     for(const repo of repos) { 
 
       const runId = getRunId();
-      console.log(`🤖 Repo:${repo.id} RunId:${runId}`);
+      console.log(`${toLocalIso()} 📥 Repo:${repo.id} RunId:${runId}`);
 
       // 2) Set repo context
       const llmProfile = null; // TODO: usare LLMProfileResolverService
@@ -166,7 +177,7 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         this.logger.runCompleted();
       }
 
-      this.fileSystemTool.createFile({ path: ".ai.log.txt", content: `# AI Tasks\n\nRun ${runId} completed with status: ${status}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}\n` });
+      this.fileSystemTool.saveFile({ path: ".ai.log.txt", content: `# AI Tasks\n\nRun ${runId} completed with status: ${status}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}\n` });
 
       // 10) Commit + push
       this.git.commit(`Job DONE`);
