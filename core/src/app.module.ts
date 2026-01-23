@@ -12,7 +12,7 @@ import { LLMClientService } from './services/llm-client.service';
 import { LLMProfileResolverService } from './services/llm-profile-resolver.service';
 import { PromptTemplateService } from './services/prompt-template.service';
 import { PromptService } from './services/prompt.service';
-import { BuildService } from './services/build.service';
+import { ScriptsService } from './services/build.service';
 import { RunLoggerService } from './services/run-logger.service';
 import { RepomixService } from './services/repomix.service';
 import { AIInstructionsService } from './services/ai-instructions.service';
@@ -32,7 +32,7 @@ import { AIInstructionsService } from './services/ai-instructions.service';
     LLMProfileResolverService,
     PromptTemplateService,
     PromptService,
-    BuildService,
+    ScriptsService,
     RunLoggerService,
     RepomixService,
     AIInstructionsService,

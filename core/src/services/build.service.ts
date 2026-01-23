@@ -6,7 +6,7 @@ import { ENV } from '../env';
 import { BuildHelpers } from '../helpers/build-helpers';
 
 @Injectable()
-export class BuildService {
+export class ScriptsService {
 
   constructor(private readonly repoContext: RepoContextService) {}
 
@@ -16,10 +16,14 @@ export class BuildService {
   }
 
   npmInstall() {
-    return this._run('npm i');
+    return this._run(ENV.INSTALL_CMD);
   }
 
-  async run(BUILD_CMD: string): Promise<BuildResult> {
+  build(): Promise<BuildResult> {
+    return this.run(ENV.BUILD_CMD);
+  }
+
+  private async run(BUILD_CMD: string): Promise<BuildResult> {
     const start = Date.now();
     try {
       const stdout = this._run(BUILD_CMD);

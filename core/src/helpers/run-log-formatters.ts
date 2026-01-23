@@ -1,5 +1,7 @@
 export type TaskEventLike = { ts: number; kind: string; data?: any };
 
+import { toLocalIso } from '../libs/utils';
+
 export class RunLogFormatters {
   static formatTaskEvent(ev: TaskEventLike): string[] {
     const time = this.formatTime(new Date(ev.ts));
@@ -52,20 +54,13 @@ export class RunLogFormatters {
   }
 
   static formatTime(d: Date): string {
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${hh}:${mm}:${ss}`;
+    const iso = toLocalIso(d);
+    return iso.split('T')[1].split('.')[0];
   }
 
   static formatDateTime(d: Date): string {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+    const iso = toLocalIso(d);
+    return iso.replace('T', ' ').split('.')[0];
   }
 
   static formatDuration(ms: number): string {

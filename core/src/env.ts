@@ -3,7 +3,7 @@ import { version, name } from '../package.json';
 import * as path from 'path';
 
 dotenv.config();
-const revision = 5;
+const revision = 6;
 
 export abstract class ENV {
   static readonly VERSION = `${version}.${revision}`;
@@ -15,10 +15,11 @@ export abstract class ENV {
 
   static readonly LLM_API_URL = process.env.LLM_API_URL || 'http://localhost:8000/v1';
   static readonly LLM_API_KEY = process.env.LLM_API_KEY || 'dummy';
-  static readonly LLM_MODEL = process.env.LLM_MODEL || 'gpt-4o-mini';
+  static readonly LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3-coder-30b';
   static readonly LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.2');
-  static readonly LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
+  static readonly LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '262144', 10);
 
+  static readonly INSTALL_COMMAND = process.env.INSTALL_COMMAND || 'npm i';
   static readonly BUILD_COMMAND = process.env.BUILD_COMMAND || 'npm run build';
   static readonly BUILD_TIMEOUT_SECONDS = parseInt(process.env.BUILD_TIMEOUT_SECONDS || '300', 10);
 

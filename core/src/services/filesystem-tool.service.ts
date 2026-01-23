@@ -16,18 +16,30 @@ export class FileSystemToolService {
 
   list({ path: p = '.' }: any): ToolResult {
     const full = this.resolve(p);
-    return { success: true, output: fs.readdirSync(full) };
+    try {
+      return { success: true, output: fs.readdirSync(full) };
+    } catch (e) {
+      return { success: false, error: `Failed to list directory: ${(e as Error).message}` };
+    }
   }
 
   read({ path: p }: any): ToolResult {
     const full = this.resolve(p);
-    return { success: true, output: fs.readFileSync(full, 'utf-8') };
+    try {
+      return { success: true, output: fs.readFileSync(full, 'utf-8') };
+    } catch (e) {
+      return { success: false, error: `Failed to read file: ${(e as Error).message}` };
+    }
   }
 
-  saveFile({ path: p, content }: any): ToolResult {
+  save({ path: p, content }: any): ToolResult {
     const full = this.resolve(p);
-    fs.writeFileSync(full, content);
-    return { success: true };
+    try {
+      fs.writeFileSync(full, content);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: `Failed to save file: ${(e as Error).message}` };
+    }
   }
 
 }

@@ -19,10 +19,10 @@ export const readRepoFileSafe = (repoPath: string, file: string) => {
 };
 
 export const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-export const toLocalIso = (date: Date = new Date(), timeZone = 'Europe/Rome') => {
+export const toLocalIso = (date: Date = new Date(), timeZone = process.env.TZ) => {
   const pad = (n: number, w = 2) => String(n).padStart(w, '0');
   const dtf = new Intl.DateTimeFormat('it-IT', {
-    timeZone,
+    timeZone: timeZone || undefined,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

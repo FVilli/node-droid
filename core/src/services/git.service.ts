@@ -87,4 +87,12 @@ export class GitService {
     console.log(rv);
     return rv;
   }
+
+  getHeadSha(): string {
+    return this.run('git rev-parse --short HEAD');
+  }
+
+  getHeadSubject(): string {
+    return this.run('git log -1 --pretty=%s');
+  }
 }

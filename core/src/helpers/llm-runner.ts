@@ -28,6 +28,11 @@ export class LLMRunner {
       const llmStart = Date.now();
       const response = await deps.llm.chat(messages, profile, tools);
       const llmDuration = Date.now() - llmStart;
+      console.log('- [messages] ---------------------------------------------------------------------------------');
+      console.log(messages);
+      console.log('- [response] ---------------------------------------------------------------------------------');
+      console.log(response);
+      console.log('- <end> --------------------------------------------------------------------------------------');
       const message = response?.choices?.[0]?.message;
 
       if (!message) {

@@ -9,10 +9,10 @@ import { TaskExtractionService } from './services/task-extraction.service';
 import { TaskExecutorService } from './services/task-executor.service';
 import { RunLoggerService } from './services/run-logger.service';
 import { Task } from './types';
-import { FileSystemToolService } from './services/filesystem-tool.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import ora from 'ora';
+import { ScriptsService } from './services/build.service';
 
 @Injectable()
 export class AppService implements OnApplicationBootstrap, BeforeApplicationShutdown {
@@ -27,7 +27,7 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
     private readonly taskExtraction: TaskExtractionService,
     private readonly taskExecutor: TaskExecutorService,
     private readonly logger: RunLoggerService,
-    private readonly fileSystemTool: FileSystemToolService,
+    private readonly scripts: ScriptsService,
   ) {}
 
   onApplicationBootstrap() {
@@ -52,12 +52,15 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
   private async waitForNextTick() {
     let remaining = Math.max(10, ENV.WATCH_INTERVAL);
     const spinner = ora({ text: `...` }).start();
-    while (remaining > 0 && !this.isShuttingDown) {
-      spinner.text = `${remaining}`;
-      await sleep(1000);
-      remaining--;
+    try {
+      while (remaining > 0 && !this.isShuttingDown) {
+        spinner.text = `${remaining}`;
+        await sleep(1000);
+        remaining--;
+      }
+    } finally {
+      spinner.stop();
     }
-    spinner.stop();
   }
 
   private async tick() {
@@ -90,10 +93,14 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
       if (updates.branch !== repo.config.baseBranch) { this.logger.warn(`Get Updates error: folder is not on the correct branch`); continue; }
       if (updates.files.length===0) { this.logger.info(`branch is up to date`); continue; }
 
-      const commitAi = updates.commits.find(c => c.includes(ENV.AI_COMMIT_TAG));
-      if (!commitAi) continue;
-
       this.git.pull(repo.config.baseBranch);
+      const headSubject = this.git.getHeadSubject();
+
+      const commitAi = updates.commits.find(c => c.includes(ENV.AI_COMMIT_TAG));
+      if (!commitAi) {
+        console.log(`🤖 No AI-tagged commits found; skipping task run`);
+        continue;
+      }
 
       // 5) File scoping from remote delta
       if (this.isShuttingDown) return;
@@ -124,13 +131,28 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
 
       this.runState.reset();
       this.runState.setStatus('RUNNING');
-      this.logger.init(runId, ctx.id);
+      this.logger.init(runId, ctx.id, headSubject);
 
       this.git.createBranch(branch);
       if (this.isShuttingDown) {
         this.logger.runInterrupted('Shutdown during bootstrap');
         this.runState.setStatus('INTERRUPTED');
         return;
+      }
+
+      try {
+        const out = this.scripts.npmInstall();
+        console.log(`[node-droid] npm install ok`);
+        if (out) console.log(out);
+        this.logger.npmInstallResult(true, out || '', '');
+      } catch (err: any) {
+        const stdout = err?.stdout?.toString() || '';
+        const stderr = err?.stderr?.toString() || '';
+        console.error('[node-droid] npm install failed');
+        if (stdout) console.error(stdout);
+        if (stderr) console.error(stderr);
+        this.logger.npmInstallResult(false, stdout, stderr);
+        this.logger.warn('npm install failed; continuing run');
       }
 
       // 8) Task loop (Politica B)
@@ -177,15 +199,14 @@ export class AppService implements OnApplicationBootstrap, BeforeApplicationShut
         this.logger.runCompleted();
       }
 
-      this.fileSystemTool.saveFile({ path: ".ai.log.txt", content: `# AI Tasks\n\nRun ${runId} completed with status: ${status}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}\n` });
-
       // 10) Commit + push
-      this.git.commit(`Job DONE`);
+      const commitMsg = status === 'FAILED' || hadFailures ? 'Job failed.' : 'Job done !';
+      this.git.commit(commitMsg);
       this.git.push(branch);
       if (this.isShuttingDown) return;
 
       const title = `AI Automation Run ${runId}`;
-      const body = `This PR was automatically created by node-droid AI automation.\n\nRun ID: ${runId}\n\n---\n\n${tasks.map(t => `- [${t.status==='DONE'?'x':' '}] ${t.title}`).join('\n')}`;
+      const body = `This PR was automatically created by node-droid AI automation.\n\nRun ID: ${runId}\n\n---\n\n${tasks.map(t => `- ${t.status==='DONE'?'✅':'❌'} ${t.title}`).join('\n')}`;
 
       // 11) Pull Request
       await this.git.createPR(repo.config.baseBranch, branch, title, body, repo.config.token);

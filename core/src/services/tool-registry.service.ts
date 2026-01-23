@@ -16,7 +16,7 @@ export class ToolRegistryService {
     switch (call.name) {
       case 'list_files': return this.fsTools.list(call.arguments);
       case 'read_file': return this.fsTools.read(call.arguments);
-      case 'save_file': return this.fsTools.saveFile(call.arguments);
+      case 'save_file': return this.fsTools.save(call.arguments);
       default: return { success: false, error: `Unknown tool: ${call.name}` };
     }
   }

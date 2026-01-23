@@ -6,7 +6,7 @@ export class RepoContextBuilder {
   static build(descriptor: RepoDescriptor, llmProfile: any): RepoContext {
     const rootPath = descriptor.path;
     const codePath = path.join(rootPath, ENV.REPO_CODE_FOLDER);
-    const aiPath = path.join(rootPath, ENV.REPO_AI_FOLDER);
+    const aiPath = path.join(codePath, ENV.REPO_AI_FOLDER);
     const sshPath = path.join(rootPath, ENV.REPO_SSH_FOLDER);
 
     return {

@@ -5,6 +5,7 @@ export class PromptBuilders {
     const system = [
       'You are an expert software agent working inside a Node.js monorepo.',
       'Use the available tools to inspect and modify files when needed.',
+      'Do NOT install new dependencies. If a missing package is required, stop the task and report which package must be installed.',
       'When the task is complete, respond with a short summary of what was done.'
     ].join(' ');
 

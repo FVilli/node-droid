@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Task } from '../types';
 import { LLMClientService } from './llm-client.service';
 import { ToolRegistryService } from './tool-registry.service';
-import { BuildService } from './build.service';
+import { ScriptsService } from './build.service';
 import { RunLoggerService } from './run-logger.service';
 import { RunStateService } from './run-state.service';
 import { PromptService } from './prompt.service';
@@ -11,6 +11,7 @@ import { RepoContextService } from './repo-context.service';
 import { TaskOutcome } from '../types';
 import { ENV } from 'src/env';
 import { BuildResult } from '../types';
+import { BuildHelpers } from '../helpers/build-helpers';
 import { LLMRunner } from '../helpers/llm-runner';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class TaskExecutorService {
   constructor(
     private readonly llm: LLMClientService,
     private readonly tools: ToolRegistryService,
-    private readonly build: BuildService,
+    private readonly scripts: ScriptsService,
     private readonly logger: RunLoggerService,
     private readonly runState: RunStateService,
     private readonly prompt: PromptService,
@@ -63,13 +64,20 @@ export class TaskExecutorService {
       return 'INTERRUPTED';
     }
 
-    const buildRes = await this.build.run(ENV.BUILD_CMD);
+    const buildRes = await this.scripts.build();
     this.logger.taskBuildResult(task, { phase: 'initial', result: buildRes });
     if (buildRes.success) { this.logger.taskDone(task); return 'DONE'; }
 
     if (this.runState.isShuttingDown()) {
       this.logger.warn(`Task [${task.title}] interrupted before retry`);
       return 'INTERRUPTED';
+    }
+
+    const missing = BuildHelpers.extractMissingPackage(`${buildRes.stderr}\n${buildRes.stdout}`);
+    if (missing) {
+      task.result = `Missing dependency: ${missing}. Please install it and retry the task.`;
+      this.logger.taskFailed(task);
+      return 'FAILED';
     }
 
     this.runState.resetAttempt();
@@ -85,7 +93,7 @@ export class TaskExecutorService {
       const fixed = await this.runOnceAfterBuildFailure(task, buildRes);
       if (!fixed) continue;
 
-      const retryBuild = await this.build.run(ENV.BUILD_CMD);
+      const retryBuild = await this.scripts.build();
       this.logger.taskBuildResult(task, { phase: 'retry', result: retryBuild });
       if (retryBuild.success) { this.logger.taskDone(task); return 'DONE'; }
     }
