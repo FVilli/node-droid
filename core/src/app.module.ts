@@ -16,8 +16,11 @@ import { ScriptsService } from './services/build.service';
 import { RunLoggerService } from './services/run-logger.service';
 import { RepomixService } from './services/repomix.service';
 import { AIInstructionsService } from './services/ai-instructions.service';
+import { TranslateToEnglishService } from './services/translate-to-english.service';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
+  imports: [ScheduleModule.forRoot()],
   providers: [
     AppService,
     RunStateService,
@@ -36,6 +39,7 @@ import { AIInstructionsService } from './services/ai-instructions.service';
     RunLoggerService,
     RepomixService,
     AIInstructionsService,
+    TranslateToEnglishService,
   ],
 })
 export class AppModule {}

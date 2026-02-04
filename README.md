@@ -16,50 +16,34 @@ node-droid is an autonomous development agent that watches your Git repositories
 - 🧹 **Task Marker Cleanup** - Removes `ai.md` and task comments after processing
 - 🧾 **Always Creates PR** - Opens a PR even if tasks fail (developer decides)
 
-## 🚀 Quick Start
+## 🧠 How It works (logic)
 
-### Prerequisites
+Each run follows a strict, non-interactive workflow:
+1. Sync the target branch from the remote and look for trigger commits that include `[ai]`.
+2. Scope task extraction only to files changed in those commits (for speed and precision).
+3. If tasks are found, create a dedicated run branch and execute them in order.
+4. A task is considered successful only if the build passes after its changes.
+5. The run always opens a pull request, even if one or more tasks fail.
 
-- Node.js 20+
-- Docker & Docker Compose (for containerized deployment)
-- An LLM API endpoint (vLLM, Ollama, or OpenAI-compatible)
+node-droid is intentionally headless: it is a background worker meant for small, well-defined tasks communicated via Git. All activity is documented in the `.ai/` folder at the repository root, including summaries, task status, and execution context.
 
-### Installation
+## 🧠 How It works (code)
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-org/node-droid.git
-cd node-droid
-```
+node-droid orchestrates a full run by combining dedicated services: 
+- `WorkspaceService` and `RepoContextService` load repo configuration and paths
+- `GitService` keeps the local clone aligned to the remote
+- `TaskExtractionService` parses tasks from committed files
+- `TranslateToEnglishService` normalizes task titles/descriptions
+- `PromptTemplateService`, `PromptService`, `AIInstructionsService`, and `RepomixService` build the final prompt context
+- `LLMProfileResolverService` and `LLMClientService` drive the model calls
+- `ToolRegistryService` executes tool invocations
+- `ScriptsService` runs builds
+- `RunStateService` coordinates lifecycle state
+- `RunLoggerService` produces the Markdown audit logs and summaries
 
-2. Install dependencies:
-```bash
-cd core
-npm install
-```
+## 🚀 Quick Start (Self-Hosted)
 
-3. Configure environment:
-```bash
-cp .env.example .env
-# Edit .env with your settings
-```
-
-4. Build:
-```bash
-npm run build
-```
-
-5. Run:
-```bash
-npm start
-```
-
-### Docker Deployment
-```bash
-docker-compose up -d
-```
-
-### Self-Hosted (No Source Clone)
+This is the easy way to run node-droid.
 
 If you want to run node-droid without cloning this repo, you can use a Docker image and a local `docker-compose.yml`.
 Create a folder with a `workspace/` and a `docker-compose.yml`, then start the container.
@@ -163,29 +147,68 @@ triggers:
 
 Note: PR creation currently uses the GitHub CLI (`gh`), so only GitHub remotes are supported.
 
+## 🛠️ How to Develop & Contribute
+
+### Prerequisites
+
+- Node.js 20+
+- Docker & Docker Compose (optional, for containerized testing)
+- An LLM API endpoint (vLLM, Ollama, or OpenAI-compatible)
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/your-org/node-droid.git
+cd node-droid
+```
+
+2. Install dependencies:
+```bash
+cd core
+npm install
+```
+
+3. Configure environment:
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+4. Build:
+```bash
+npm run build
+```
+
+5. Run:
+```bash
+npm start
+```
+
 ## 📖 Usage
 
 ### 1. Add Task Comments
-Add comments where the change is needed. Use `ai:` and an optional description after `|`.
+Add comments where the change is needed. Use `ai:` for the task title, then add optional description lines with `//`.
 ```typescript
 // apps/backend/src/users/users.service.ts
 
 export class UsersService {
-  // ai: Add method for soft delete of users | Keep backwards compatibility
-  // ai: Implement pagination for findAll()
+  // ai: Add method for soft delete of users
+  // Keep backwards compatibility with existing callers
   findAll() {
     return this.userRepository.find();
   }
 }
 ```
+The first code line immediately after the task comment is included as context for the task request.
 
 ### 2. Add ai.md (Optional, for task lists)
 Place `ai.md` in `src/` or any nested folder to define a list of tasks.  
-Each task is a bullet, and you can add a description with `|` or a multiline indented block.
+Each task is a bullet, and you can add a description with a multiline indented block.
 ```markdown
 ## AI Tasks
 
-- Create authentication service in `apps/backend/src/auth` | Include module, service, and basic tests
+- Create authentication service in `apps/backend/src/auth`
 - Implement JWT token generation
   Add refresh token flow and expiry handling
 - Add login and register endpoints | Return 401 on invalid credentials
@@ -204,6 +227,7 @@ Root instructions are included for every task. Folder instructions are included 
 
 ### 4. Commit with AI Tag
 Only files involved in the commit are scanned for tasks.
+The tag is only a trigger and is removed from run/summary titles.
 ```bash
 git commit -m "[ai] Add user authentication feature"
 ```
@@ -218,10 +242,10 @@ node-droid will:
 2. Extract tasks only from files included in the commit (comments and ai.md)
 3. Execute each task (it can read/modify any file in the repo while working)
 4. Build after each task (with fix retries if build fails)
-5. Remove task markers (`ai.md`, `// ai:` and `/* ai: ... */`)
+5. Update task markers in code comments and remove `ai.md`
 6. Create a merge request (even if some tasks fail)
 
-Note: all task markers are removed after processing; the complete task definition, prompts, tool calls, and outputs are preserved in the run report under `.ai/`.
+Note: comment-based task markers are replaced with ✅/❌ status lines, while `ai.md` files are removed after processing; the complete task definition and outputs are preserved in the run report under `.ai/`.
 
 ## 📁 Activity Logs
 
@@ -284,21 +308,6 @@ node-droid/
 ├── Task Executor      # LLM loop + tools + build retries
 ├── Run Logger         # Full Markdown report in .ai/
 └── Repomix Service    # Project context generation
-```
-
-## 🛠️ Development
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run dev
-
-# Build
-npm run build
-
-# Run tests (if applicable)
-npm test
 ```
 
 ## 📝 License

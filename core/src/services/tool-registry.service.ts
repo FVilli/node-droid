@@ -14,9 +14,11 @@ export class ToolRegistryService {
 
   async execute(call: ToolCall): Promise<ToolResult> {
     switch (call.name) {
-      case 'list_files': return this.fsTools.list(call.arguments);
+      case 'get_folder_content': return this.fsTools.list(call.arguments);
       case 'read_file': return this.fsTools.read(call.arguments);
       case 'save_file': return this.fsTools.save(call.arguments);
+      case 'search': return this.fsTools.search(call.arguments);
+      case 'search_file': return this.fsTools.searchFile(call.arguments);
       default: return { success: false, error: `Unknown tool: ${call.name}` };
     }
   }

@@ -4,8 +4,8 @@ export class ToolDefinitions {
       {
         type: 'function',
         function: {
-          name: 'list_files',
-          description: 'List files in a directory relative to the repo root.',
+          name: 'get_folder_content',
+          description: 'List files and folders in a directory relative to the repo root.',
           parameters: {
             type: 'object',
             properties: { path: { type: 'string' } }
@@ -36,6 +36,40 @@ export class ToolDefinitions {
               content: { type: 'string' }
             },
             required: ['path', 'content']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search',
+          description: 'Search for text inside files under a directory.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+              path: { type: 'string' },
+              caseSensitive: { type: 'boolean' },
+              maxResults: { type: 'number' }
+            },
+            required: ['query']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_file',
+          description: 'Search for file names that match a substring under a directory.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+              path: { type: 'string' },
+              caseSensitive: { type: 'boolean' },
+              maxResults: { type: 'number' }
+            },
+            required: ['query']
           }
         }
       },

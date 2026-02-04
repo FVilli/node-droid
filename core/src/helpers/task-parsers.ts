@@ -16,17 +16,29 @@ export class TaskParsers {
       if (line.startsWith('//') && line.includes(tag)) {
         const body = line.split(tag)[1]?.trim();
         if (!body) continue;
-        const [title, ...rest] = body.split('|').map(s => s.trim());
+        const title = body;
+        const descLines: string[] = [];
+        let j = i + 1;
+        while (j < lines.length && lines[j].trim().startsWith('//') && !lines[j].includes(tag)) {
+          const desc = lines[j].replace(/^(\s*\/\/)\s?/, '').trim();
+          if (desc) descLines.push(desc);
+          j++;
+        }
+        const codeSnippet = this.captureAdjacentCode(lines, j);
+        const extraDesc = descLines.length ? descLines.join('\n') : '';
+        
         tasks.push({
           id: nanoid(4),
           source: 'ts',
           file,
           line: i + 1,
           title,
-          description: rest.join(' | ') || '',
+          description: extraDesc,
+          codeSnippet,
           relatedFiles: [file],
           status: 'TODO',
         });
+        i = j - 1;
       }
 
       // /* ai: ... */
@@ -106,14 +118,13 @@ export class TaskParsers {
       for (const l of lines) {
         if (!l.startsWith('-')) continue;
         const body = l.replace(/^-/, '').trim();
-        const [title, ...rest] = body.split('|').map(s => s.trim());
         out.push({
           id: nanoid(4),
           source: 'ts',
           file,
           line,
-          title,
-          description: rest.join(' | ') || '',
+          title: body,
+          description: '',
           relatedFiles: [file],
           status: 'TODO',
         });
@@ -123,8 +134,8 @@ export class TaskParsers {
 
     // Testo libero
     const [first, ...rest] = lines;
-    const [title, ...descInline] = first.split('|').map(s => s.trim());
-    const desc = [...descInline, ...rest].join('\n').trim();
+    const title = first;
+    const desc = rest.join('\n').trim();
 
     out.push({
       id: nanoid(4),
@@ -137,6 +148,22 @@ export class TaskParsers {
       status: 'TODO',
     });
     return out;
+  }
+
+  private static captureAdjacentCode(lines: string[], startIndex: number): string {
+    let k = startIndex;
+    while (k < lines.length && !lines[k].trim()) k++;
+    if (k >= lines.length) return '';
+    const firstLine = lines[k];
+    const firstTrim = firstLine.trim();
+    if (firstTrim.startsWith('//') || firstTrim.startsWith('/*') || firstTrim.startsWith('*') || firstTrim.startsWith('{') || firstTrim.startsWith('}')) return '';
+    const snippet: string[] = [firstLine];
+    if (firstTrim.startsWith('@')) {
+      let next = k + 1;
+      while (next < lines.length && !lines[next].trim()) next++;
+      if (next < lines.length) snippet.push(lines[next]);
+    }
+    return ['```ts', snippet.join('\n'), '```'].join('\n');
   }
 
   private static getRelatedFilesForMD(file: string): string[] {

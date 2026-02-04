@@ -4,24 +4,22 @@ import { Task } from '../types';
 
 export class AIInstructionsHelper {
   static getInstructions(codePath: string, task: Task): string | null {
+
     const rootPath = path.join(codePath, 'ai-instructions.md');
     const root = this.readIfExists(rootPath);
-
     const taskDir = task.file ? path.dirname(task.file) : null;
-    const localPath = taskDir && taskDir !== '.'
-      ? path.join(codePath, taskDir, 'ai-instructions.md')
-      : null;
+    const localPath = taskDir && taskDir !== '.' ? path.join(codePath, taskDir, 'ai-instructions.md') : null;
     const local = localPath && localPath !== rootPath ? this.readIfExists(localPath) : null;
 
     if (!root && !local) return null;
 
     const parts: string[] = [];
     if (root) {
-      parts.push('## Project Instructions (root)');
+      parts.push('## Project Instructions (global)');
       parts.push(root);
     }
     if (local) {
-      parts.push(`## Directory Instructions (${taskDir})`);
+      parts.push(`## Directory Instructions (path: **${taskDir}**)`);
       parts.push(local);
     }
     return parts.join('\n\n');

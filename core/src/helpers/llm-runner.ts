@@ -2,7 +2,12 @@ import { Task } from '../types';
 
 type LLMClient = { chat(messages: any[], profile?: any, tools?: any[]): Promise<any> };
 type ToolRegistry = { getTools(): any[]; execute(call: { name: string; arguments: Record<string, any> }): Promise<any> };
-type Logger = { taskLLMCall(task: Task, payload: { messages: any[]; response: any; durationMs: number }): void; taskToolCall(task: Task, payload: { name: string; args: any; result: any; durationMs: number }): void; warn(msg: string): void };
+type Logger = {
+  taskLLMCall(task: Task, payload: { messages: any[]; response: any; durationMs: number }): void;
+  taskToolCall(task: Task, payload: { name: string; args: any; result: any; durationMs: number }): void;
+  taskRetryPrompt?(task: Task): void;
+  warn(msg: string): void;
+};
 type LLMProfileResolver = { resolve(ctx: any): any };
 type RepoContextProvider = { get(): any };
 
@@ -28,11 +33,6 @@ export class LLMRunner {
       const llmStart = Date.now();
       const response = await deps.llm.chat(messages, profile, tools);
       const llmDuration = Date.now() - llmStart;
-      console.log('- [messages] ---------------------------------------------------------------------------------');
-      console.log(messages);
-      console.log('- [response] ---------------------------------------------------------------------------------');
-      console.log(response);
-      console.log('- <end> --------------------------------------------------------------------------------------');
       const message = response?.choices?.[0]?.message;
 
       if (!message) {
@@ -42,7 +42,12 @@ export class LLMRunner {
 
       deps.logger.taskLLMCall(task, {
         messages: promptSnapshot,
-        response: { role: message.role, content: message.content, tool_calls: message.tool_calls },
+        response: {
+          role: message.role,
+          content: message.content,
+          tool_calls: message.tool_calls,
+          usage: response?.usage,
+        },
         durationMs: llmDuration
       });
 
@@ -96,6 +101,10 @@ export class LLMRunner {
   }
 
   static warnRetry(logger: Logger, task: Task): void {
+    if (logger.taskRetryPrompt) {
+      logger.taskRetryPrompt(task);
+      return;
+    }
     logger.warn(`Notifying LLM about failure for [${task.title}]`);
   }
 }

@@ -6,13 +6,7 @@ export const readRepoFileSafe = (repoPath: string, file: string) => {
   try {
     const full = path.resolve(repoPath, file);
     if (!full.startsWith(path.resolve(repoPath))) return null; // path escape guard
-    const rv = fs.readFileSync(full, 'utf-8');
-    console.log("=".repeat(100));
-    console.log(file);
-    console.log("=".repeat(100));
-    console.log(rv);
-    console.log("=".repeat(100));
-    return rv;
+    return fs.readFileSync(full, 'utf-8');
   } catch {
     return null;
   }
@@ -81,4 +75,11 @@ export const normalizeCommits = (commits: string[]) => {
     }
   }
   return result;
+};
+
+export const formatTimeColonDot = (date: Date = new Date()) => {
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}.${ss}`;
 };

@@ -10,7 +10,7 @@ export class PromptBuilders {
     ].join(' ');
 
     const blocks = [system];
-    if (instructions) blocks.push(`\n## Project Instructions\n\n${instructions}`);
+    if (instructions) blocks.push(`\n${instructions}`);
     if (projectContext) blocks.push(`\n## Project Context\n\n${projectContext}`);
     return blocks.join('');
   }

@@ -33,11 +33,13 @@ export class PromptTemplates {
     lines.push(`### ${title}`);
     if (description) lines.push(description);
     lines.push('</task>');
-    lines.push(`This task is defined in: <file>${file}</file>`);
+    lines.push('');
+    lines.push(`- This task is defined in: <file>**${file}**</file>`);
     if (isMdTask) {
-      lines.push(`Consider the folder of <file>${file}</file> as working directory of this task`);
+      const folder = file.substring(0, file.lastIndexOf('/')) || '.';
+      lines.push(`- Consider the folder <folder>**${folder}**</folder> as working directory of this task`);
     } else {
-      lines.push('Consider this file as target of this task.');
+      lines.push('- Consider this file as target of this task.');
     }
     return lines.join('\n');
   }

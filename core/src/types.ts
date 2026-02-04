@@ -72,6 +72,8 @@ export interface Task {
   relatedFiles?: string[];
   result?: string;
   status: TaskOutcome;
+  codeSnippet?: string;
+  projects?: Array<{ packageJson: string; name: string }>;
 }
 
 /* ---------- Tools ---------- */
@@ -106,9 +108,9 @@ export interface RunContext {
 
 /* ---------- Logging ---------- */
 
-export type RunEvent = { ts: number; level: 'INFO' | 'WARN' | 'ERROR' | 'DRY'; message: string };
+export type RunEvent = { ts: number; level: 'INFO' | 'WARN' | 'ERROR' | 'DRY'; message: string; emoji?: string };
 export type TaskEvent = { ts: number; kind: 'start' | 'attempt' | 'fix-attempt' | 'llm' | 'tool' | 'build' | 'done' | 'failed'; data?: any };
-export type TaskLog = {
+export type RunReportTask = {
   task: Task;
   startTs?: number;
   endTs?: number;
@@ -117,8 +119,29 @@ export type TaskLog = {
   fixAttempts: number;
   llmCalls: number;
   toolCalls: number;
-  filesTouched: Set<string>;
+  filesTouched: string[];
   events: TaskEvent[];
+};
+
+export type RunReport = {
+  meta: {
+    runId?: string;
+    repoId?: string;
+    commit?: string;
+    startedAt: number;
+    endedAt?: number;
+    status?: string;
+    reason?: string;
+  };
+  stats: {
+    totalAttempts: number;
+    totalFixAttempts: number;
+    totalLLMCalls: number;
+    totalToolCalls: number;
+  };
+  installResult?: { success: boolean; stdout: string; stderr: string };
+  events: RunEvent[];
+  tasks: RunReportTask[];
 };
 
 /* ---------- Summaries (optional) ---------- */
