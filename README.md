@@ -187,6 +187,180 @@ npm start
 
 ## 📖 Usage
 
+## Build verification via `.ai/build-instructions.yml`
+
+Node-droid esegue automaticamente una **verifica di build** dopo l’esecuzione di un task, per assicurarsi che le modifiche introdotte non abbiano rotto il progetto.
+
+Per evitare qualsiasi assunzione implicita o inferenza automatica (deterministica o tramite LLM), **la logica di build è interamente dichiarativa** ed è fornita dall’utente tramite un file di configurazione.
+
+---
+
+### File di configurazione
+
+Il file deve essere posizionato in:
+
+```
+.ai/build-instructions.yml
+```
+
+Questo file descrive:
+- quali parti del repository (unit) esistono
+- come riconoscere quali unit sono state toccate
+- l’ordine di build tramite dipendenze esplicite
+- i comandi da eseguire (`install`, `build`)
+- la directory di esecuzione di ciascun comando
+
+Node-droid **non deduce nulla** dalla struttura del progetto: esegue esclusivamente ciò che è dichiarato in questo file.
+
+---
+
+### Concetti chiave
+
+#### Unit
+
+Una *unit* rappresenta una porzione logica del repository:
+- un’applicazione
+- una libreria
+- un progetto singolo (nel caso non monorepo)
+
+Ogni unit è identificata da:
+- un nome
+- un `path` assoluto rispetto alla root del repository
+- eventuali dipendenze (`dependsOn`)
+- comandi di `install` e `build`
+
+---
+
+### Semantica dei path
+
+- Tutti i `path` sono **assoluti rispetto alla root del repository**
+- La root del repository è identificata da `/`
+
+Esempi:
+
+| Tipo progetto | path |
+|--------------|------|
+| Single-repo | `/` |
+| Monorepo lib | `/libs/core-utils` |
+| Monorepo app | `/apps/api` |
+
+Una unit è considerata *toccata* se almeno un file modificato ha un path che inizia con `unit.path`.
+
+---
+
+### Install e build
+
+#### Global install
+
+Se presente, `global.install` viene **sempre eseguito una volta**, indipendentemente dalle unit toccate.
+
+Serve a garantire che le dipendenze del workspace siano allineate.
+
+#### Unit install
+
+Se una unit è stata toccata **e** dichiara un proprio `install`, anche questo comando viene eseguito.
+
+L’`install` della unit **non sostituisce** il global install: è additivo.
+
+#### Build
+
+Ogni unit coinvolta nel grafo di build (toccata direttamente o richiesta come dipendenza) viene buildata.
+
+---
+
+### Dipendenze tra unit
+
+Le dipendenze sono dichiarate esplicitamente tramite `dependsOn`.
+
+Node-droid:
+1. individua le unit toccate
+2. risolve ricorsivamente tutte le dipendenze
+3. costruisce un grafo aciclico
+4. esegue la build in ordine topologico
+
+In presenza di:
+- dipendenze mancanti
+- cicli nel grafo  
+
+il processo fallisce immediatamente.
+
+---
+
+### Esempio: progetto semplice (non monorepo)
+
+```yaml
+version: 1
+
+global:
+  install:
+    cwd: /
+    cmd: npm i
+
+units:
+  app:
+    type: app
+    path: /
+    build:
+      cwd: /
+      cmd: npm run build
+```
+
+---
+
+### Esempio: monorepo
+
+```yaml
+version: 1
+
+global:
+  install:
+    cwd: /
+    cmd: npm i
+
+units:
+  core-utils:
+    type: lib
+    path: /libs/core-utils
+    build:
+      cwd: /
+      cmd: nest build core-utils
+
+  auth-lib:
+    type: lib
+    path: /libs/auth
+    dependsOn:
+      - core-utils
+    build:
+      cwd: /
+      cmd: nest build auth-lib
+
+  api:
+    type: app
+    path: /apps/api
+    dependsOn:
+      - auth-lib
+      - core-utils
+    build:
+      cwd: /
+      cmd: nest build api
+```
+
+---
+
+### Principi di design
+
+- Nessuna inferenza automatica
+- Nessuna dipendenza da LLM
+- Comportamento 100% deterministico
+- Stessa logica per single-repo e monorepo
+- Il file `.ai/build-instructions.yml` è la **fonte di verità unica**
+
+Se la build è errata, la causa è nel file di configurazione, non in node-droid.
+
+---
+
+## Come assegno cose da fare a node-droid ?
+
 ### 1. Add Task Comments
 Add comments where the change is needed. Use `ai:` for the task title, then add optional description lines with `//`.
 ```typescript

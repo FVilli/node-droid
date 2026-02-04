@@ -11,7 +11,7 @@ export abstract class ENV {
   static readonly WORKSPACE_FOLDER = process.env.WORKSPACE_FOLDER || (process.cwd() === '/app' ? '/app/workspace' : path.join(process.cwd(), '../workspace'));
   static readonly LLM_API_URL = process.env.LLM_API_URL || 'http://localhost:8000/v1';
   static readonly LLM_API_KEY = process.env.LLM_API_KEY || 'dummy';
-  static readonly LLM_MODEL = process.env.LLM_MODEL || 'openai/gpt-oss-20b'; // qwen/qwen3-coder-30b // openai/gpt-oss-120b
+  static readonly LLM_MODEL = process.env.LLM_MODEL || 'qwen/qwen3-coder-next'; // qwen/qwen3-coder-30b // openai/gpt-oss-120b // openai/gpt-oss-20b
   static readonly LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.2');
   static readonly LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '262144', 10);
   static readonly INSTALL_COMMAND = process.env.INSTALL_COMMAND || 'npm i';
