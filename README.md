@@ -4,6 +4,8 @@
 
 node-droid is an autonomous development agent that watches your Git repositories, extracts tasks from code and markdown, executes them with an LLM + tools, validates with a build, and opens a PR with a full audit log.
 
+Italian version: `README.it.md`
+
 ## ✨ Features
 
 - 🔍 **Commit-Based Triggering** - Watches for `[ai]` commits and starts a run
@@ -16,7 +18,7 @@ node-droid is an autonomous development agent that watches your Git repositories
 - 🧹 **Task Marker Cleanup** - Removes `ai.md` and task comments after processing
 - 🧾 **Always Creates PR** - Opens a PR even if tasks fail (developer decides)
 
-## 🧠 How It works (logic)
+## 🧠 How It Works (Logic)
 
 Each run follows a strict, non-interactive workflow:
 1. Sync the target branch from the remote and look for trigger commits that include `[ai]`.
@@ -27,9 +29,9 @@ Each run follows a strict, non-interactive workflow:
 
 node-droid is intentionally headless: it is a background worker meant for small, well-defined tasks communicated via Git. All activity is documented in the `.ai/` folder at the repository root, including summaries, task status, and execution context.
 
-## 🧠 How It works (code)
+## 🧠 How It Works (Code)
 
-node-droid orchestrates a full run by combining dedicated services: 
+node-droid orchestrates a full run by combining dedicated services:
 - `WorkspaceService` and `RepoContextService` load repo configuration and paths
 - `GitService` keeps the local clone aligned to the remote
 - `TaskExtractionService` parses tasks from committed files
@@ -73,8 +75,8 @@ Populate `./workspace/<repo-id>/repo.yml` as described below and node-droid will
 
 ### Workspace Volume + repo.yml
 
-node-droid scans `WORKSPACE_FOLDER` (default: `/app/workspace` in Docker).  
-Each repo you want to monitor must live in its own folder with a `repo.yml` file.  
+node-droid scans `WORKSPACE_FOLDER` (default: `/app/workspace` in Docker).
+Each repo you want to monitor must live in its own folder with a `repo.yml` file.
 The repo will be cloned into a `code/` subfolder under that repo directory.
 
 Example layout:
@@ -187,106 +189,105 @@ npm start
 
 ## 📖 Usage
 
-## Build verification via `.ai/build-instructions.yml`
+## Build Verification via `.ai/build-instructions.yml`
 
-Node-droid esegue automaticamente una **verifica di build** dopo l’esecuzione di un task, per assicurarsi che le modifiche introdotte non abbiano rotto il progetto.
+Node-droid automatically runs a **build verification** after each task to ensure the changes did not break the project.
 
-Per evitare qualsiasi assunzione implicita o inferenza automatica (deterministica o tramite LLM), **la logica di build è interamente dichiarativa** ed è fornita dall’utente tramite un file di configurazione.
+To avoid implicit assumptions or automatic inference (deterministic or LLM-based), **the build logic is fully declarative** and provided by the user via a configuration file.
 
 ---
 
-### File di configurazione
+### Configuration File
 
-Il file deve essere posizionato in:
-
+The file must be placed at:
 ```
 .ai/build-instructions.yml
 ```
 
-Questo file descrive:
-- quali parti del repository (unit) esistono
-- come riconoscere quali unit sono state toccate
-- l’ordine di build tramite dipendenze esplicite
-- i comandi da eseguire (`install`, `build`)
-- la directory di esecuzione di ciascun comando
+This file defines:
+- which repository parts (units) exist
+- how to detect which units were touched
+- build order through explicit dependencies
+- commands to run (`install`, `build`)
+- the working directory for each command
 
-Node-droid **non deduce nulla** dalla struttura del progetto: esegue esclusivamente ciò che è dichiarato in questo file.
+Node-droid **does not infer anything** from the project structure: it executes only what is declared in this file.
 
 ---
 
-### Concetti chiave
+### Key Concepts
 
 #### Unit
 
-Una *unit* rappresenta una porzione logica del repository:
-- un’applicazione
-- una libreria
-- un progetto singolo (nel caso non monorepo)
+A *unit* represents a logical portion of the repository:
+- an application
+- a library
+- a single project (in a non-monorepo)
 
-Ogni unit è identificata da:
-- un nome
-- un `path` assoluto rispetto alla root del repository
-- eventuali dipendenze (`dependsOn`)
-- comandi di `install` e `build`
+Each unit is identified by:
+- a name
+- an absolute `path` relative to the repository root
+- optional dependencies (`dependsOn`)
+- `install` and `build` commands
 
 ---
 
-### Semantica dei path
+### Path Semantics
 
-- Tutti i `path` sono **assoluti rispetto alla root del repository**
-- La root del repository è identificata da `/`
+- All `path` values are **absolute with respect to the repository root**
+- The repository root is identified by `/`
 
-Esempi:
+Examples:
 
-| Tipo progetto | path |
+| Project type | path |
 |--------------|------|
 | Single-repo | `/` |
 | Monorepo lib | `/libs/core-utils` |
 | Monorepo app | `/apps/api` |
 
-Una unit è considerata *toccata* se almeno un file modificato ha un path che inizia con `unit.path`.
+A unit is considered *touched* if at least one modified file has a path that starts with `unit.path`.
 
 ---
 
-### Install e build
+### Install and Build
 
-#### Global install
+#### Global Install
 
-Se presente, `global.install` viene **sempre eseguito una volta**, indipendentemente dalle unit toccate.
+If present, `global.install` is **always executed once**, regardless of touched units.
 
-Serve a garantire che le dipendenze del workspace siano allineate.
+This ensures that workspace dependencies are aligned.
 
-#### Unit install
+#### Unit Install
 
-Se una unit è stata toccata **e** dichiara un proprio `install`, anche questo comando viene eseguito.
+If a unit was touched **and** declares its own `install`, that command is executed too.
 
-L’`install` della unit **non sostituisce** il global install: è additivo.
+The unit `install` **does not replace** the global install: it is additive.
 
 #### Build
 
-Ogni unit coinvolta nel grafo di build (toccata direttamente o richiesta come dipendenza) viene buildata.
+Every unit involved in the build graph (touched directly or required as a dependency) is built.
 
 ---
 
-### Dipendenze tra unit
+### Unit Dependencies
 
-Le dipendenze sono dichiarate esplicitamente tramite `dependsOn`.
+Dependencies are declared explicitly via `dependsOn`.
 
 Node-droid:
-1. individua le unit toccate
-2. risolve ricorsivamente tutte le dipendenze
-3. costruisce un grafo aciclico
-4. esegue la build in ordine topologico
+1. identifies touched units
+2. resolves all dependencies recursively
+3. builds an acyclic graph
+4. runs builds in topological order
 
-In presenza di:
-- dipendenze mancanti
-- cicli nel grafo  
+If there are:
+- missing dependencies
+- cycles in the graph
 
-il processo fallisce immediatamente.
+the process fails immediately.
 
 ---
 
-### Esempio: progetto semplice (non monorepo)
+### Example: Simple Project (Non-monorepo)
 
 ```yaml
 version: 1
@@ -307,7 +308,7 @@ units:
 
 ---
 
-### Esempio: monorepo
+### Example: Monorepo
 
 ```yaml
 version: 1
@@ -347,21 +348,22 @@ units:
 
 ---
 
-### Principi di design
+### Design Principles
 
-- Nessuna inferenza automatica
-- Nessuna dipendenza da LLM
-- Comportamento 100% deterministico
-- Stessa logica per single-repo e monorepo
-- Il file `.ai/build-instructions.yml` è la **fonte di verità unica**
+- No automatic inference
+- No LLM dependencies
+- 100% deterministic behavior
+- Same logic for single-repo and monorepo
+- The `.ai/build-instructions.yml` file is the **single source of truth**
 
-Se la build è errata, la causa è nel file di configurazione, non in node-droid.
+If the build is incorrect, the cause is the configuration file, not node-droid.
 
 ---
 
-## Come assegno cose da fare a node-droid ?
+## How to Assign Tasks to node-droid
 
 ### 1. Add Task Comments
+
 Add comments where the change is needed. Use `ai:` for the task title, then add optional description lines with `//`.
 ```typescript
 // apps/backend/src/users/users.service.ts
@@ -376,8 +378,9 @@ export class UsersService {
 ```
 The first code line immediately after the task comment is included as context for the task request.
 
-### 2. Add ai.md (Optional, for task lists)
-Place `ai.md` in `src/` or any nested folder to define a list of tasks.  
+### 2. Add ai.md (Optional, for Task Lists)
+
+Place `ai.md` in `src/` or any nested folder to define a list of tasks.
 Each task is a bullet, and you can add a description with a multiline indented block.
 ```markdown
 ## AI Tasks
@@ -390,7 +393,8 @@ Each task is a bullet, and you can add a description with a multiline indented b
 ```
 
 ### 3. Add ai-instructions.md (Optional, directives)
-You can add an `ai-instructions.md` in the repo root and/or in any subfolder.  
+
+You can add an `ai-instructions.md` in the repo root and/or in any subfolder.
 Root instructions are included for every task. Folder instructions are included only for tasks in that folder.
 ```markdown
 ## Project Rules
@@ -400,6 +404,7 @@ Root instructions are included for every task. Folder instructions are included 
 ```
 
 ### 4. Commit with AI Tag
+
 Only files involved in the commit are scanned for tasks.
 The tag is only a trigger and is removed from run/summary titles.
 ```bash
@@ -407,6 +412,7 @@ git commit -m "[ai] Add user authentication feature"
 ```
 
 ### 5. Push and Watch
+
 ```bash
 git push origin develop
 ```
@@ -460,7 +466,7 @@ Each log contains:
 
 ### Repomix Integration
 
-Repomix is configured per repo via `repo.yml` and used only when `repomix.enabled: true`.  
+Repomix is configured per repo via `repo.yml` and used only when `repomix.enabled: true`.
 If enabled but the package is missing in the target repository, node-droid logs a warning and continues without it.
 
 Add to the target repository `package.json`:
