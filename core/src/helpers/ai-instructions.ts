@@ -1,14 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Task } from '../types';
+import { ENV } from '../env';
 
 export class AIInstructionsHelper {
   static getInstructions(codePath: string, task: Task): string | null {
 
-    const rootPath = path.join(codePath, 'ai-instructions.md');
+    const rootPath = path.join(codePath, ENV.AI_INSTRUCTIONS_FILE);
     const root = this.readIfExists(rootPath);
     const taskDir = task.file ? path.dirname(task.file) : null;
-    const localPath = taskDir && taskDir !== '.' ? path.join(codePath, taskDir, 'ai-instructions.md') : null;
+    const localPath = taskDir && taskDir !== '.' ? path.join(codePath, taskDir, ENV.AI_INSTRUCTIONS_FILE) : null;
     const local = localPath && localPath !== rootPath ? this.readIfExists(localPath) : null;
 
     if (!root && !local) return null;

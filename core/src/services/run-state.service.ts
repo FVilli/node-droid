@@ -1,31 +1,62 @@
 import { Injectable } from '@nestjs/common';
-import { RunPhase, RunStatus } from '../types';
-import { RunContext } from '../types';
+import { RunContext, RunPhase, RunSnapshot, RunStatus, TaskOutcome } from '../types';
 
 @Injectable()
 export class RunStateService {
-  private phase: RunPhase = 'IDLE';
-  private status: RunStatus = 'STOPPED';
-  private context?: RunContext;
-  private currentTaskId?: string;
-  private attempt = 0;
-  private shuttingDown = false;
+  private snapshot: RunSnapshot = {
+    phase: 'IDLE',
+    status: 'STOPPED',
+    shuttingDown: false,
+    attempt: 0,
+  };
 
-  reset() { this.phase = 'IDLE'; this.status = 'STOPPED'; this.context = undefined; this.currentTaskId = undefined; this.attempt = 0; }
+  reset() {
+    const shuttingDown = this.snapshot.shuttingDown;
+    this.snapshot = {
+      phase: 'IDLE',
+      status: 'STOPPED',
+      shuttingDown,
+      attempt: 0,
+    };
+  }
 
-  setPhase(phase: RunPhase) { this.phase = phase; }
-  setStatus(status: RunStatus) { this.status = status; }
-  setContext(ctx: RunContext) { this.context = ctx; }
-  setCurrentTask(taskId?: string) { this.currentTaskId = taskId; this.attempt = 0; }
-  resetAttempt() { this.attempt = 0; }
-  incAttempt() { this.attempt++; }
+  startRun(ctx: RunContext) {
+    this.snapshot.context = ctx;
+    this.snapshot.status = 'RUNNING';
+    this.snapshot.phase = 'BOOTSTRAP';
+    this.snapshot.currentTask = undefined;
+    this.snapshot.attempt = 0;
+  }
 
-  getPhase() { return this.phase; }
-  getStatus() { return this.status; }
-  getContext() { return this.context; }
-  getCurrentTask() { return this.currentTaskId; }
-  getAttempt() { return this.attempt; }
+  setPhase(phase: RunPhase) { this.snapshot.phase = phase; }
+  setStatus(status: RunStatus) { this.snapshot.status = status; }
+  setContext(ctx: RunContext) { this.snapshot.context = ctx; }
 
-  setShuttingDown(v: boolean) { this.shuttingDown = v; }
-  isShuttingDown() { return this.shuttingDown; }
+  setCurrentTask(task?: { id?: string; title: string; index?: number; status?: TaskOutcome }) {
+    this.snapshot.currentTask = task;
+    this.snapshot.attempt = 0;
+  }
+
+  setCurrentTaskStatus(status: TaskOutcome) {
+    if (!this.snapshot.currentTask) return;
+    this.snapshot.currentTask = { ...this.snapshot.currentTask, status };
+  }
+
+  clearCurrentTask() {
+    this.snapshot.currentTask = undefined;
+    this.snapshot.attempt = 0;
+  }
+
+  resetAttempt() { this.snapshot.attempt = 0; }
+  incAttempt() { this.snapshot.attempt++; }
+
+  getPhase() { return this.snapshot.phase; }
+  getStatus() { return this.snapshot.status; }
+  getContext() { return this.snapshot.context; }
+  getCurrentTask() { return this.snapshot.currentTask; }
+  getAttempt() { return this.snapshot.attempt; }
+  getSnapshot(): RunSnapshot { return { ...this.snapshot, currentTask: this.snapshot.currentTask ? { ...this.snapshot.currentTask } : undefined, context: this.snapshot.context ? { ...this.snapshot.context, triggerCommit: this.snapshot.context.triggerCommit ? { ...this.snapshot.context.triggerCommit } : undefined } : undefined }; }
+
+  setShuttingDown(v: boolean) { this.snapshot.shuttingDown = v; }
+  isShuttingDown() { return this.snapshot.shuttingDown; }
 }

@@ -12,7 +12,8 @@ Questo documento descrive l’architettura dei servizi interni di **node-droid**
 - Protocollo LLM: OpenAI-compatible
 - Configurazione file-based (workspace)
 - Nessun modulo NestJS custom
-- Orchestrazione in `app.service.ts`
+- Scheduling in `app.service.ts`
+- Orchestrazione della run in `run-orchestrator.service.ts`
 - Tutto deve essere auditabile
 
 ---
@@ -26,7 +27,6 @@ src/
   app.module.ts
   app.service.ts
   env.ts
-  interfaces.ts
   types.ts
 
   services/
@@ -61,6 +61,7 @@ I servizi sono suddivisi in:
 
 ### Orchestrazione e stato
 - `app.service.ts`
+- `run-orchestrator.service.ts`
 - `run-state.service.ts`
 
 ### Workspace e repo
@@ -86,18 +87,15 @@ I servizi sono suddivisi in:
 - `llm-client.service.ts`
 - `llm-profile-resolver.service.ts`
 - `prompt-template.service.ts`
+- `prompt.service.ts`
+- `translate-to-english.service.ts`
+- `context-file.service.ts`
 
 ### Build & validation
 - `build.service.ts`
 
 ### Logging & audit
 - `run-logger.service.ts`
-- `artifact.service.ts` (opzionale)
 
 ### Merge Request
 - `merge-request.service.ts`
-
-### Analisi semantica (non critici)
-- `commit-analysis.service.ts`
-- `diff-summary.service.ts`
-- `run-summary.service.ts`

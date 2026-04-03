@@ -3,7 +3,7 @@ import { version, name } from '../package.json';
 import * as path from 'path';
 
 dotenv.config();
-const revision = 7;
+const revision = 8;
 
 export abstract class ENV {
   static readonly VERSION = `${version}.${revision}`;
@@ -22,7 +22,9 @@ export abstract class ENV {
   static readonly STOP_POLICY = process.env.STOP_POLICY || 'STOP_ON_FIRST_FAILURE';
   // --- AI / Triggering ---
   static readonly AI_COMMIT_TAG = process.env.AI_COMMIT_TAG || '[ai]';
-  static readonly AI_TODO_FILE = process.env.AI_TODO_FILE || 'ai.md';
+  static readonly AI_INSTRUCTIONS_FILE = process.env.AI_INSTRUCTIONS_FILE || 'ai-instructions.md';
+  static readonly AI_CONTEXT_FILE = process.env.AI_CONTEXT_FILE || 'ai-context.md';
+  static readonly AI_TODO_FILE = process.env.AI_TODO_FILE || 'ai-tasks.md';
   static readonly AI_TODO_COMMENT = process.env.AI_TODO_COMMENT || 'ai:';
   static readonly AI_BRANCH_PREFIX = process.env.AI_BRANCH_PREFIX || 'ai';
   // --- DRY RUN semantics (locale reale / remoto dry) ---
@@ -36,4 +38,13 @@ export abstract class ENV {
   static readonly REPO_SSH_FOLDER = process.env.REPO_SSH_FOLDER || '.ssh';
   static readonly REPO_AI_FOLDER = process.env.REPO_AI_FOLDER || '.ai';
   static readonly LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+  // --- MQTT Audit ---
+  static readonly MQTT_AUDIT_ENABLED = process.env.MQTT_AUDIT_ENABLED === 'true';
+  static readonly MQTT_AUDIT_URL = process.env.MQTT_AUDIT_URL || 'mqtt://localhost:1883';
+  static readonly MQTT_AUDIT_USERNAME = process.env.MQTT_AUDIT_USERNAME || '';
+  static readonly MQTT_AUDIT_PASSWORD = process.env.MQTT_AUDIT_PASSWORD || '';
+  static readonly MQTT_AUDIT_CLIENT_ID = process.env.MQTT_AUDIT_CLIENT_ID || `${name}-${process.pid}`;
+  static readonly MQTT_AUDIT_TOPIC_PREFIX = process.env.MQTT_AUDIT_TOPIC_PREFIX || 'node-droid/audit';
+  static readonly MQTT_AUDIT_QOS = parseInt(process.env.MQTT_AUDIT_QOS || '0', 10);
+  static readonly MQTT_AUDIT_RETAIN = process.env.MQTT_AUDIT_RETAIN === 'true';
 }

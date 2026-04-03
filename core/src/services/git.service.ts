@@ -20,10 +20,7 @@ export class GitService {
   // --- helpers ---
   private run(cmd: string) {
     const { codePath } = this.repoContext.get();
-    //console.log(`[EXEC] ${cmd} (in ${codePath})`);
-    const rv = execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
-    //console.log(rv);
-    return rv;
+    return execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
   }
 
   private runRoot(cmd: string) {

@@ -9,7 +9,7 @@ import * as path from 'path';
 import { RunLoggerService } from './run-logger.service';
 
 @Injectable()
-export class ScriptsService {
+export class BuildService {
 
   constructor(
     private readonly repoContext: RepoContextService,

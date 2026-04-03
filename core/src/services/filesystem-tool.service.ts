@@ -24,12 +24,41 @@ export class FileSystemToolService {
     }
   }
 
+  listFiles({ path: p = '.' }: any): ToolResult {
+    return this.list({ path: p });
+  }
+
   read({ path: p }: any): ToolResult {
     const full = this.resolve(p);
     try {
       return { success: true, output: fs.readFileSync(full, 'utf-8') };
     } catch (e) {
       return { success: false, error: `Failed to read file: ${(e as Error).message}` };
+    }
+  }
+
+  readRange({ path: p, startLine, endLine }: any): ToolResult {
+    const full = this.resolve(p);
+    const start = Number(startLine);
+    const end = Number(endLine);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+      return { success: false, error: 'Invalid startLine/endLine' };
+    }
+    try {
+      const content = fs.readFileSync(full, 'utf-8');
+      const lines = content.split('\n');
+      const selected = lines.slice(start - 1, end);
+      return {
+        success: true,
+        output: {
+          path: p,
+          startLine: start,
+          endLine: Math.min(end, lines.length),
+          content: selected.join('\n'),
+        }
+      };
+    } catch (e) {
+      return { success: false, error: `Failed to read file range: ${(e as Error).message}` };
     }
   }
 
@@ -40,6 +69,44 @@ export class FileSystemToolService {
       return { success: true };
     } catch (e) {
       return { success: false, error: `Failed to save file: ${(e as Error).message}` };
+    }
+  }
+
+  create({ path: p, content }: any): ToolResult {
+    const full = this.resolve(p);
+    try {
+      if (fs.existsSync(full)) {
+        return { success: false, error: 'File already exists' };
+      }
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, content ?? '', 'utf-8');
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: `Failed to create file: ${(e as Error).message}` };
+    }
+  }
+
+  replace({ path: p, search, replace, all = false }: any): ToolResult {
+    const full = this.resolve(p);
+    if (typeof search !== 'string' || search.length === 0) {
+      return { success: false, error: 'Missing search text' };
+    }
+    if (typeof replace !== 'string') {
+      return { success: false, error: 'Missing replacement text' };
+    }
+    try {
+      const original = fs.readFileSync(full, 'utf-8');
+      if (!original.includes(search)) {
+        return { success: false, error: 'Search text not found' };
+      }
+      const updated = all
+        ? original.split(search).join(replace)
+        : original.replace(search, replace);
+      fs.writeFileSync(full, updated, 'utf-8');
+      const replacements = all ? original.split(search).length - 1 : 1;
+      return { success: true, output: { replacements } };
+    } catch (e) {
+      return { success: false, error: `Failed to replace in file: ${(e as Error).message}` };
     }
   }
 
@@ -103,6 +170,33 @@ export class FileSystemToolService {
       return { success: true, output: results };
     } catch (e) {
       return { success: false, error: `Failed to search file names: ${(e as Error).message}` };
+    }
+  }
+
+  insert({ path: p, content, after, before }: any): ToolResult {
+    const full = this.resolve(p);
+    if (typeof content !== 'string') {
+      return { success: false, error: 'Missing content' };
+    }
+    if ((typeof after === 'string' && typeof before === 'string') || (typeof after !== 'string' && typeof before !== 'string')) {
+      return { success: false, error: 'Provide exactly one of after or before' };
+    }
+    const anchor = typeof after === 'string' ? after : before;
+    if (!anchor) {
+      return { success: false, error: 'Missing anchor text' };
+    }
+    try {
+      const original = fs.readFileSync(full, 'utf-8');
+      const index = original.indexOf(anchor);
+      if (index < 0) {
+        return { success: false, error: 'Anchor text not found' };
+      }
+      const insertAt = typeof after === 'string' ? index + anchor.length : index;
+      const updated = `${original.slice(0, insertAt)}${content}${original.slice(insertAt)}`;
+      fs.writeFileSync(full, updated, 'utf-8');
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: `Failed to insert in file: ${(e as Error).message}` };
     }
   }
 

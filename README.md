@@ -13,9 +13,10 @@ Italian version: `README.it.md`
 - 🤖 **LLM Execution Loop** - Runs tasks with tool calls and retries
 - ✅ **Build Gate** - Runs build after task execution, with fix retries on failure
 - 📊 **Exhaustive Run Logs** - Detailed Markdown reports in `.ai/` with full task context
-- 🧠 **Project Context Awareness** - Repomix-backed context for better prompts
+- 📡 **MQTT Audit Stream** - Structured audit events for runs, tasks, builds, and tool usage
+- 🧠 **Project Context Awareness** - `ai-context.md` files in root and folders guide local reasoning
 - 📌 **AI Instructions** - `ai-instructions.md` directives at root and folder-level
-- 🧹 **Task Marker Cleanup** - Removes `ai.md` and task comments after processing
+- 🧹 **Task Marker Cleanup** - Removes `ai-tasks.md` and task comments after processing
 - 🧾 **Always Creates PR** - Opens a PR even if tasks fail (developer decides)
 
 ## 🧠 How It Works (Logic)
@@ -25,7 +26,8 @@ Each run follows a strict, non-interactive workflow:
 2. Scope task extraction only to files changed in those commits (for speed and precision).
 3. If tasks are found, create a dedicated run branch and execute them in order.
 4. A task is considered successful only if the build passes after its changes.
-5. The run always opens a pull request, even if one or more tasks fail.
+5. If a task requires a missing dependency or another external requirement, it can end as blocked instead of forcing a poor workaround.
+6. The run always opens a pull request, even if one or more tasks fail or remain blocked.
 
 node-droid is intentionally headless: it is a background worker meant for small, well-defined tasks communicated via Git. All activity is documented in the `.ai/` folder at the repository root, including summaries, task status, and execution context.
 
@@ -36,12 +38,13 @@ node-droid orchestrates a full run by combining dedicated services:
 - `GitService` keeps the local clone aligned to the remote
 - `TaskExtractionService` parses tasks from committed files
 - `TranslateToEnglishService` normalizes task titles/descriptions
-- `PromptTemplateService`, `PromptService`, `AIInstructionsService`, and `RepomixService` build the final prompt context
+- `PromptTemplateService`, `PromptService`, `AIInstructionsService`, and `ContextFileService` build the final prompt context
 - `LLMProfileResolverService` and `LLMClientService` drive the model calls
-- `ToolRegistryService` executes tool invocations
-- `ScriptsService` runs builds
+- `ToolRegistryService` executes tool invocations, preferring targeted file operations such as `read_file_range`, `replace_in_file`, and `insert_in_file`
+- `BuildService` runs builds
 - `RunStateService` coordinates lifecycle state
-- `RunLoggerService` produces the Markdown audit logs and summaries
+- `RunLoggerService` produces Markdown audit logs and emits structured audit events
+- `AuditPublisherService` publishes audit events via MQTT
 
 ## 🚀 Quick Start (Self-Hosted)
 
@@ -64,6 +67,9 @@ services:
       LLM_API_URL: "http://host.docker.internal:8000/v1"
       LLM_API_KEY: "dummy"
       LLM_MODEL: "gpt-4o-mini"
+      MQTT_AUDIT_ENABLED: "true"
+      MQTT_AUDIT_URL: "mqtt://host.docker.internal:1883"
+      MQTT_AUDIT_TOPIC_PREFIX: "node-droid/audit"
 ```
 
 Then:
@@ -122,32 +128,46 @@ agent:
   stopOnFailure: false     # reserved for future behavior
   maxToolCallsPerTask: 30  # overrides MAX_TOOL_CALLS_PER_TASK
 
-# OPTIONAL: Repomix settings (only used if repomix is installed in the repo)
-repomix:
-  enabled: true
-  maxContextSize: 30000
-  style: markdown
-  include:
-    - "**/*.ts"
-    - "**/*.js"
-    - "**/*.json"
-    - "**/*.md"
-  ignore:
-    useGitignore: true
-    useDefaultPatterns: true
-    customPatterns:
-      - "node_modules/**"
-      - "dist/**"
-  removeComments: false
-  removeEmptyLines: true
-  showLineNumbers: false
-
 # OPTIONAL: overrides AI_COMMIT_TAG if provided
 triggers:
   commitPrefix: "[ai]"
 ```
 
 Note: PR creation currently uses the GitHub CLI (`gh`), so only GitHub remotes are supported.
+
+### MQTT Audit
+
+Audit publishing is configured only through environment variables.
+
+Supported variables:
+```env
+MQTT_AUDIT_ENABLED=true
+MQTT_AUDIT_URL=mqtt://localhost:1883
+MQTT_AUDIT_USERNAME=
+MQTT_AUDIT_PASSWORD=
+MQTT_AUDIT_CLIENT_ID=node-droid
+MQTT_AUDIT_TOPIC_PREFIX=node-droid/audit
+MQTT_AUDIT_QOS=0
+MQTT_AUDIT_RETAIN=false
+```
+
+Published events include run lifecycle, task attempts and outcomes, build checks, tool calls, and LLM call metadata.
+
+Topic format:
+```text
+<MQTT_AUDIT_TOPIC_PREFIX>/<repoId>/<runId>/<eventType>
+```
+
+Supported event types:
+- `run.event`
+- `run.status`
+- `task.status`
+- `task.attempt`
+- `task.build`
+- `task.tool`
+- `task.llm`
+
+For the full MQTT contract with example JSON payloads, see `docs/09-logging-and-audit.md`.
 
 ## 🛠️ How to Develop & Contribute
 
@@ -378,9 +398,9 @@ export class UsersService {
 ```
 The first code line immediately after the task comment is included as context for the task request.
 
-### 2. Add ai.md (Optional, for Task Lists)
+### 2. Add ai-tasks.md (Optional, for Task Lists)
 
-Place `ai.md` in `src/` or any nested folder to define a list of tasks.
+Place `ai-tasks.md` in `src/` or any nested folder to define a list of tasks.
 Each task is a bullet, and you can add a description with a multiline indented block.
 ```markdown
 ## AI Tasks
@@ -395,6 +415,50 @@ Each task is a bullet, and you can add a description with a multiline indented b
 ### 3. Add ai-instructions.md (Optional, directives)
 
 You can add an `ai-instructions.md` in the repo root and/or in any subfolder.
+
+### 4. Add ai-context.md (Optional, local context)
+
+You can add an `ai-context.md` in the repo root and/or in relevant subfolders.
+
+The model is instructed to:
+- read existing `ai-context.md` files before expanding the search scope
+- use them as local context, not as absolute truth
+- bootstrap them when a relevant folder has no useful local context and recurring work would benefit
+- refresh and compact them after a task only when this improves future runs
+
+Official `ai-context.md` template:
+```markdown
+# AI Context
+
+## Purpose
+Short description of the folder or module responsibility.
+
+## Key Files
+- `file-a.ts`: essential role
+- `file-b.ts`: essential role
+
+## Local Rules
+- Local conventions and constraints that must be respected.
+
+## Patterns
+- Recurring architectural or structural patterns in this folder.
+
+## Dependencies
+- Only important local integrations or dependencies.
+
+## Gotchas
+- Traps, generated files, fragile points, or easy mistakes.
+
+## Open Notes
+- Short local notes that are useful but not yet fully certain.
+```
+
+Rules:
+- keep it short and operational
+- omit irrelevant sections
+- keep it roughly within 200-300 words unless there is a strong reason not to
+- do not turn it into task history or full documentation
+
 Root instructions are included for every task. Folder instructions are included only for tasks in that folder.
 ```markdown
 ## Project Rules
@@ -419,13 +483,13 @@ git push origin develop
 
 node-droid will:
 1. Detect the `[ai]` commit
-2. Extract tasks only from files included in the commit (comments and ai.md)
+2. Extract tasks only from files included in the commit (comments and ai-tasks.md)
 3. Execute each task (it can read/modify any file in the repo while working)
 4. Build after each task (with fix retries if build fails)
-5. Update task markers in code comments and remove `ai.md`
+5. Update task markers in code comments and remove `ai-tasks.md`
 6. Create a merge request (even if some tasks fail)
 
-Note: comment-based task markers are replaced with ✅/❌ status lines, while `ai.md` files are removed after processing; the complete task definition and outputs are preserved in the run report under `.ai/`.
+Note: comment-based task markers are replaced with ✅/❌/⛔ status lines, while `ai-tasks.md` files are removed after processing; the complete task definition and outputs are preserved in the run report under `.ai/`.
 
 ## 📁 Activity Logs
 
@@ -458,36 +522,22 @@ Each log contains:
 | `MAX_TASK_RETRIES` | Task retries | `3` |
 | `MAX_TOOL_CALLS_PER_TASK` | Tool call limit | `30` |
 | `AI_COMMIT_TAG` | Commit trigger tag | `[ai]` |
-| `AI_TODO_FILE` | Task file name | `ai.md` |
+| `AI_INSTRUCTIONS_FILE` | Instructions file name | `ai-instructions.md` |
+| `AI_CONTEXT_FILE` | Context file name | `ai-context.md` |
+| `AI_TODO_FILE` | Task file name | `ai-tasks.md` |
 | `AI_TODO_COMMENT` | Task comment tag | `ai:` |
 | `AI_BRANCH_PREFIX` | Branch prefix | `ai` |
 | `DRY_RUN` | Disable LLM + remote side effects | `false` |
 | `GH_TOKEN` | GitHub token for PR creation | unset |
 
-### Repomix Integration
-
-Repomix is configured per repo via `repo.yml` and used only when `repomix.enabled: true`.
-If enabled but the package is missing in the target repository, node-droid logs a warning and continues without it.
-
-Add to the target repository `package.json`:
-```json
-{
-  "devDependencies": {
-    "repomix": "^0.1.0"
-  }
-}
-```
-
-node-droid will automatically use Repomix if available to provide enhanced project context to the LLM.
-
 ## 🏗️ Architecture
 ```
 node-droid/
 ├── Workspace Scanner  # Discovers repos
-├── Task Extraction    # Reads ai.md and ai: comments
+├── Task Extraction    # Reads ai-tasks.md and ai: comments
 ├── Task Executor      # LLM loop + tools + build retries
 ├── Run Logger         # Full Markdown report in .ai/
-└── Repomix Service    # Project context generation
+└── Context Files      # ai-instructions.md + ai-context.md
 ```
 
 ## 📝 License

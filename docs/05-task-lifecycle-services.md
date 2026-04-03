@@ -11,8 +11,7 @@ TaskExtractionService
 - Estrae task da contenuti umani / semi-strutturati
 - Supporta:
   - TODO nei file .ts
-  - File TODO.md
-- Interagisce con LLM
+  - File `ai-tasks.md`
 - Ritorna task grezzi
 
 ### Input
@@ -24,8 +23,7 @@ TaskExtractionService
 - Lista di RawTask
 
 ### Dipendenze
-- LLMClientService
-- PromptTemplateService
+- `TaskParsers`
 
 ### Non deve fare
 - Non deve deduplicare
@@ -46,7 +44,7 @@ TaskNormalizationService
 - Assegna ID deterministici
 - Normalizza campi
 - Ordina task
-- Valida schema
+- Normalizza `relatedFiles`
 
 ### Input
 - Lista RawTask
@@ -55,7 +53,7 @@ TaskNormalizationService
 - Lista Task normalizzati
 
 ### Dipendenze
-- libs (hashing, deterministic-id)
+- `crypto`
 
 ### Non deve fare
 - Non deve parlare con LLM
@@ -73,21 +71,33 @@ TaskQueueService
 ### Responsabilità
 - Mantiene stato dei task
 - Espone `next()`
-- Gestisce retry count
-- Tiene traccia di DONE / FAILED
+- Espone `load()`, `mark()` e `list()`
+- Tiene traccia di `TODO` / `DONE` / `FAILED` / `BLOCKED`
 
 ### Input
 - Lista Task normalizzati
 
 ### Output
 - Task corrente
+- Indice task
 - Stato task
 
 ### Dipendenze
-- RunStateService
+- Nessuna
 
 ### Non deve fare
 - Non deve eseguire task
 - Non deve parlare con LLM
 - Non deve modificare file
 - Non deve scrivere log
+
+---
+
+## Task Outcomes
+
+Gli outcome supportati dal sistema sono:
+
+- `DONE`: il task e` stato completato e la build e` passata
+- `FAILED`: il task non e` stato completato nel perimetro attuale
+- `BLOCKED`: il task richiede un input esterno o una nuova dipendenza e non deve essere forzato con workaround scadenti
+- `INTERRUPTED`: il task e` stato fermato per shutdown o stop della run

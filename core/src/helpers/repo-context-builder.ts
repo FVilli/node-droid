@@ -20,7 +20,6 @@ export class RepoContextBuilder {
       buildCommand: descriptor.config.buildCommand || ENV.BUILD_COMMAND,
       llmProfile,
       agentPolicy: descriptor.config.agent || {},
-      repomix: descriptor.config.repomix || {},
     };
   }
 }

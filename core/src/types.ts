@@ -1,4 +1,4 @@
-export type TaskOutcome = 'TODO' |'DONE' | 'FAILED' | 'INTERRUPTED';
+export type TaskOutcome = 'TODO' |'DONE' | 'FAILED' | 'INTERRUPTED' | 'BLOCKED';
 export type RunPhase =
   | 'IDLE'
   | 'BOOTSTRAP'
@@ -25,7 +25,6 @@ export interface RepoDefinition {
   };
   triggers?: { commitPrefix?: string };
   token?: string;
-  repomix?: RepomixConfig;
 }
 
 export interface RepoDescriptor { id: string; path: string; config: RepoDefinition; }
@@ -45,7 +44,6 @@ export interface RepoContext {
     stopOnFailure?: boolean;
     maxToolCallsPerTask?: number;
   };
-  repomix?: RepomixConfig;
 }
 
 /* ---------- LLM ---------- */
@@ -72,6 +70,11 @@ export interface Task {
   relatedFiles?: string[];
   result?: string;
   status: TaskOutcome;
+  blocker?: {
+    type: 'missing_dependency' | 'missing_requirement' | 'missing_access' | 'unknown';
+    message: string;
+    packageName?: string;
+  };
   codeSnippet?: string;
   projects?: Array<{ packageJson: string; name: string }>;
 }
@@ -102,14 +105,51 @@ export interface RunContext {
   runId: string;
   repoId: string;
   branchName: string;
-  triggerCommit: { hash: string; author: string; message: string; timestamp: string };
+  triggerCommit?: { hash?: string; author?: string; message: string; timestamp?: string };
   startedAt: string;
+}
+
+export interface RunSnapshot {
+  phase: RunPhase;
+  status: RunStatus;
+  shuttingDown: boolean;
+  context?: RunContext;
+  currentTask?: {
+    id?: string;
+    title: string;
+    index?: number;
+    status?: TaskOutcome;
+  };
+  attempt: number;
+}
+
+export type AuditEventType =
+  | 'run.event'
+  | 'run.status'
+  | 'task.status'
+  | 'task.attempt'
+  | 'task.context'
+  | 'task.build'
+  | 'task.tool'
+  | 'task.llm';
+
+export interface AuditEvent {
+  type: AuditEventType;
+  ts: number;
+  app: string;
+  version: string;
+  repoId?: string;
+  runId?: string;
+  branch?: string;
+  topic: string;
+  snapshot?: RunSnapshot;
+  payload: Record<string, any>;
 }
 
 /* ---------- Logging ---------- */
 
 export type RunEvent = { ts: number; level: 'INFO' | 'WARN' | 'ERROR' | 'DRY'; message: string; emoji?: string };
-export type TaskEvent = { ts: number; kind: 'start' | 'attempt' | 'fix-attempt' | 'llm' | 'tool' | 'build' | 'done' | 'failed'; data?: any };
+export type TaskEvent = { ts: number; kind: 'start' | 'attempt' | 'fix-attempt' | 'context' | 'llm' | 'tool' | 'build' | 'done' | 'failed' | 'blocked'; data?: any };
 export type RunReportTask = {
   task: Task;
   startTs?: number;
@@ -145,22 +185,3 @@ export type RunReport = {
 };
 
 /* ---------- Summaries (optional) ---------- */
-
-
-/* ---------- Repomix ---------- */
-
-export interface RepomixConfig {
-  enabled?: boolean;
-  maxContextSize?: number;
-  style?: 'markdown' | 'plain' | 'xml' | 'json';
-  include?: string[];
-  ignore?: {
-    useGitignore?: boolean;
-    useDefaultPatterns?: boolean;
-    customPatterns?: string[];
-  };
-  removeComments?: boolean;
-  removeEmptyLines?: boolean;
-  showLineNumbers?: boolean;
-  topFilesLength?: number;
-}

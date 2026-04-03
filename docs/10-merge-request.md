@@ -10,18 +10,17 @@ MergeRequestService
 ### Responsabilità
 - Crea merge request
 - Imposta titolo deterministico
-- Compila descrizione
-- Aggiunge summary
-- Imposta stato
+- Compila descrizione dalla run summary
+- Delega la creazione della PR a `GitService`
 
 ### Input
-- RepoContext
-- Run summary
-- Branch
+- Base branch
+- Run branch
+- Run ID
+- Token opzionale
 
 ### Output
 - MR URL
-- MR ID
 
 ### Dipendenze
 - GitService

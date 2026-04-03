@@ -6,6 +6,8 @@ import { BuildResult, RunReport, RunReportTask, RunEvent, Task, TaskEvent, TaskO
 import { ENV } from '../env';
 import { RunLogFormatters } from '../helpers/run-log-formatters';
 import { formatTimeColonDot, toLocalIso } from '../libs/utils';
+import { AuditPublisherService } from './audit-publisher.service';
+import { ContextPolicy } from './context-file.service';
 
 @Injectable()
 export class RunLoggerService {
@@ -14,7 +16,10 @@ export class RunLoggerService {
   private report?: RunReport;
   private taskIndex = new Map<string, number>();
 
-  constructor(private readonly repoContext: RepoContextService) {}
+  constructor(
+    private readonly repoContext: RepoContextService,
+    private readonly audit: AuditPublisherService,
+  ) {}
 
   getPrSummary(): string {
     if (!this.report) return 'This PR was automatically created by node-droid AI automation.';
@@ -24,7 +29,7 @@ export class RunLoggerService {
   scanRepos(count: number) {
     const date = toLocalIso().split('T')[0];
     console.log('-');
-    console.log(`${this.colorize(date, 'date')} 🔍 Analizing ${count} repos`);
+    console.log(`${this.colorize(date, 'date')} 🔍 Analyzing ${count} repos`);
   }
 
   event(emoji: string, message: string, level: RunEvent['level'] = 'INFO') {
@@ -32,6 +37,7 @@ export class RunLoggerService {
       this.report.events.push({ ts: Date.now(), level, message, emoji });
     }
     this.timeline(emoji, message);
+    this.publishAudit('run.event', { level, emoji, message });
   }
 
   init(runId: string, repoId?: string, commit?: string) {
@@ -98,7 +104,11 @@ export class RunLoggerService {
   }
 
   private colorizeStatus(status: string): string {
-    const code = status === 'DONE' ? '\x1b[32m' : '\x1b[33m';
+    const code = status === 'DONE'
+      ? '\x1b[32m'
+      : status === 'BLOCKED'
+        ? '\x1b[35m'
+        : '\x1b[33m';
     return `${code}${status}\x1b[0m`;
   }
 
@@ -141,6 +151,7 @@ export class RunLoggerService {
 
   runCreated(runId: string) {
     this.event('🚀', `Created run [${runId}]`);
+    this.publishAudit('run.status', { status: 'RUNNING', runId });
   }
 
   checkoutBranch(branch: string) {
@@ -155,10 +166,17 @@ export class RunLoggerService {
     const label = String(index).padStart(2, '0');
     if (status === 'DONE') {
       this.event('✅', `Task [${label}] ${title} -> ${this.colorizeStatus('DONE')}`);
+      this.publishAudit('task.status', { index, title, status: 'DONE' });
+      return;
+    }
+    if (status === 'BLOCKED') {
+      this.event('⛔', `Task [${label}] ${title} -> ${this.colorizeStatus('BLOCKED')}`);
+      this.publishAudit('task.status', { index, title, status: 'BLOCKED' });
       return;
     }
     const out = status === 'FAILED' ? 'FAIL' : status;
     this.event('⚠️', `Task [${label}] ${title} -> ${this.colorizeStatus(out)}`);
+    this.publishAudit('task.status', { index, title, status });
   }
 
   npmInstallResult(success: boolean, stdout: string, stderr: string) {
@@ -221,6 +239,7 @@ export class RunLoggerService {
     log.attempts++;
     if (this.report) this.report.stats.totalAttempts++;
     log.events.push({ ts: Date.now(), kind: 'attempt', data: { n } });
+    this.publishAudit('task.attempt', { taskId: task.id, title: task.title, attempt: n, phase: 'initial' });
   }
 
   taskAttemptFix(task: Task, n: number) {
@@ -228,6 +247,26 @@ export class RunLoggerService {
     log.fixAttempts++;
     if (this.report) this.report.stats.totalFixAttempts++;
     log.events.push({ ts: Date.now(), kind: 'fix-attempt', data: { n } });
+    this.publishAudit('task.attempt', { taskId: task.id, title: task.title, attempt: n, phase: 'retry' });
+  }
+
+  taskContextPolicy(task: Task, payload: { phase: 'execution' | 'retry'; policy: ContextPolicy }) {
+    const log = this.getTaskLog(task);
+    const label = this.getTaskLabel(task);
+    const mode = payload.policy.shouldBootstrap ? 'bootstrap' : 'reuse';
+    const refresh = payload.policy.allowRefresh ? 'refresh' : 'no-refresh';
+    this.event('🗺️', `[${label}] Context Policy -> ${payload.phase} ${mode} ${refresh} target=${payload.policy.targetDir}`);
+    log.events.push({ ts: Date.now(), kind: 'context', data: payload });
+    this.publishAudit('task.context', {
+      taskId: task.id,
+      title: task.title,
+      phase: payload.phase,
+      targetDir: payload.policy.targetDir,
+      hasRootContext: payload.policy.hasRootContext,
+      hasTargetContext: payload.policy.hasTargetContext,
+      shouldBootstrap: payload.policy.shouldBootstrap,
+      allowRefresh: payload.policy.allowRefresh,
+    });
   }
 
   taskLLMCall(task: Task, payload: { messages: any[]; response: any; durationMs: number; }) {
@@ -235,6 +274,13 @@ export class RunLoggerService {
     log.llmCalls++;
     if (this.report) this.report.stats.totalLLMCalls++;
     log.events.push({ ts: Date.now(), kind: 'llm', data: payload });
+    this.publishAudit('task.llm', {
+      taskId: task.id,
+      title: task.title,
+      durationMs: payload.durationMs,
+      usage: payload.response?.usage,
+      toolCalls: Array.isArray(payload.response?.tool_calls) ? payload.response.tool_calls.length : 0,
+    });
   }
 
   taskToolCall(task: Task, payload: { name: string; args: any; result: any; durationMs: number; }) {
@@ -250,12 +296,28 @@ export class RunLoggerService {
       }
     }
     log.events.push({ ts: Date.now(), kind: 'tool', data: payload });
+    this.publishAudit('task.tool', {
+      taskId: task.id,
+      title: task.title,
+      name: payload.name,
+      args: payload.args,
+      success: payload.result?.success,
+      durationMs: payload.durationMs,
+    });
   }
 
   private formatToolArgs(name: string, args: any): string {
     if (!args || typeof args !== 'object') return '';
     switch (name) {
       case 'read_file':
+        return args.path ? `path=${args.path}` : '';
+      case 'read_file_range':
+        return args.path ? `path=${args.path} lines=${args.startLine}-${args.endLine}` : '';
+      case 'create_file':
+        return args.path ? `path=${args.path}` : '';
+      case 'replace_in_file':
+        return args.path ? `path=${args.path}` : '';
+      case 'insert_in_file':
         return args.path ? `path=${args.path}` : '';
       case 'save_file':
         return args.path ? `path=${args.path}` : '';
@@ -276,6 +338,14 @@ export class RunLoggerService {
     const buildLabel = payload.result.success ? 'SUCCESS' : 'FAIL';
     this.event('🏗️', `[${label}] Check Build -> ${this.colorizeOutcome(buildLabel, payload.result.success)}`);
     log.events.push({ ts: Date.now(), kind: 'build', data: payload });
+    this.publishAudit('task.build', {
+      taskId: task.id,
+      title: task.title,
+      phase: payload.phase,
+      success: payload.result.success,
+      exitCode: payload.result.exitCode,
+      durationMs: payload.result.durationMs,
+    });
   }
 
   taskDone(task: Task) {
@@ -290,6 +360,13 @@ export class RunLoggerService {
     log.endTs = Date.now();
     log.status = 'FAILED';
     log.events.push({ ts: Date.now(), kind: 'failed' });
+  }
+
+  taskBlocked(task: Task) {
+    const log = this.getTaskLog(task);
+    log.endTs = Date.now();
+    log.status = 'BLOCKED';
+    log.events.push({ ts: Date.now(), kind: 'blocked', data: task.blocker });
   }
 
   taskRetryPrompt(task: Task) {
@@ -316,6 +393,7 @@ export class RunLoggerService {
       this.report.meta.reason = reason;
       this.report.meta.endedAt = Date.now();
     }
+    this.publishAudit('run.status', { status: 'INTERRUPTED', reason });
     this.flush();
   }
 
@@ -324,6 +402,7 @@ export class RunLoggerService {
       this.report.meta.status = 'COMPLETED';
       this.report.meta.endedAt = Date.now();
     }
+    this.publishAudit('run.status', { status: 'COMPLETED' });
     this.flush();
   }
 
@@ -333,11 +412,22 @@ export class RunLoggerService {
       this.report.meta.reason = reason;
       this.report.meta.endedAt = Date.now();
     }
+    this.publishAudit('run.status', { status: 'FAILED', reason });
     this.flush();
   }
 
+  private publishAudit(type: 'run.event' | 'run.status' | 'task.status' | 'task.attempt' | 'task.context' | 'task.build' | 'task.tool' | 'task.llm', payload: Record<string, any>) {
+    void this.audit.publish(type, payload).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      this.timeline('📡', `MQTT audit publish failed [${type}] ${message}`);
+    });
+  }
+
   private isWriteTool(name: string): boolean {
-    return name === 'save_file';
+    return name === 'save_file'
+      || name === 'create_file'
+      || name === 'replace_in_file'
+      || name === 'insert_in_file';
   }
 
   private flush() {
@@ -488,8 +578,24 @@ export class RunLoggerService {
       lines.push('');
     lines.push('## 🧠 LLM Conversation');
     lines.push('');
-    lines.push(...this.renderConversation(last.data?.messages || []));
-    lines.push('');
+      lines.push(...this.renderConversation(last.data?.messages || []));
+      lines.push('');
+    }
+
+    const contextEvents = log.events.filter(e => e.kind === 'context');
+    if (contextEvents.length) {
+      lines.push('## 🗺️ Context Policy');
+      lines.push('');
+      for (const ev of contextEvents) {
+        const data = ev.data || {};
+        lines.push(`- Phase: ${data.phase || '-'}`);
+        lines.push(`- Target dir: ${data.policy?.targetDir || '-'}`);
+        lines.push(`- Root context: ${data.policy?.hasRootContext ? 'yes' : 'no'}`);
+        lines.push(`- Local context: ${data.policy?.hasTargetContext ? 'yes' : 'no'}`);
+        lines.push(`- Bootstrap: ${data.policy?.shouldBootstrap ? 'yes' : 'no'}`);
+        lines.push(`- Refresh allowed: ${data.policy?.allowRefresh ? 'yes' : 'no'}`);
+        lines.push('');
+      }
     }
 
     lines.push('## 🏁 Outcome');
@@ -580,7 +686,7 @@ export class RunLoggerService {
         lines.push(`### ${this.functionEmoji(fnName)} ${fnName}`);
         lines.push('');
         lines.push(`- 🗂️ Path: **${path}**`);
-        if (fnName === 'save_file' && typeof args?.content === 'string') {
+        if ((fnName === 'save_file' || fnName === 'create_file') && typeof args?.content === 'string') {
           lines.push('');
           lines.push(...this.renderSavedFileBlock(path, args.content));
         }
@@ -604,7 +710,7 @@ export class RunLoggerService {
     const content = msg.content;
     if (content !== undefined) {
       lines.push('');
-      if (msg.name === 'read_file') {
+      if (msg.name === 'read_file' || msg.name === 'read_file_range') {
         lines.push('[read_file output omitted]');
       } else {
         lines.push(['```json',this.safeJson(content),'```'].join('\n'));
@@ -625,7 +731,7 @@ export class RunLoggerService {
     const success = typeof parsed?.success === 'boolean' ? parsed.success : undefined;
     const emoji = success === false ? '❌' : '✅';
     const output = parsed?.output !== undefined ? parsed.output : toolMsg.content;
-    if (toolName === 'read_file') {
+    if (toolName === 'read_file' || toolName === 'read_file_range') {
       return [`### ${emoji} Output`, '```', '[read_file output omitted]', '```'];
     }
     const outText = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
@@ -680,8 +786,18 @@ export class RunLoggerService {
     switch (name) {
       case 'read_file':
         return '📖';
+      case 'read_file_range':
+        return '📑';
+      case 'list_files':
+        return '📂';
       case 'get_folder_content':
         return '📂';
+      case 'create_file':
+        return '🆕';
+      case 'replace_in_file':
+        return '✏️';
+      case 'insert_in_file':
+        return '➕';
       case 'save_file':
         return '💾';
       default:

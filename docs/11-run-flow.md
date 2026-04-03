@@ -6,22 +6,24 @@ Questo documento descrive il flusso completo di una run.
 
 ## Fase 0 — Idle
 
-- AppService entra in loop
-- Attende WATCH_INTERVAL
+- `AppService` esegue il tick schedulato
 - Scansiona workspace
+- Garantisce un solo ciclo attivo
 
 ---
 
 ## Fase 1 — Trigger
 
-- git pull
-- se nuovo commit con prefisso [ai] → start run
+- `RunOrchestratorService` prepara il contesto repo
+- legge il delta remoto Git
+- se trova commit con tag `[ai]` avvia la run
 
 ---
 
 ## Fase 2 — Bootstrap
 
 - Genera runId
+- Aggiorna `RunStateService`
 - Crea branch
 - Checkout branch
 - Inizializza log
@@ -41,8 +43,8 @@ Questo documento descrive il flusso completo di una run.
 
 - Per ogni file rilevante:
   - TaskExtractionService
-- Normalizzazione
-- Queue setup
+- `TaskNormalizationService`
+- `TaskQueueService.load()`
 
 ---
 
@@ -50,12 +52,13 @@ Questo documento descrive il flusso completo di una run.
 
 Per ogni task:
 
-- Mark IN_PROGRESS
-- TaskExecutorService
+- `RunStateService` aggiorna task corrente, indice e attempt
+- `TaskExecutorService`
 - Tool loop
 - Build
 - Retry se necessario
-- Mark DONE / FAILED
+- `TaskQueueService.mark()`
+- Outcome possibile: `DONE`, `FAILED`, `BLOCKED` oppure `INTERRUPTED`
 
 ---
 
@@ -63,7 +66,7 @@ Per ogni task:
 
 - Commit bot
 - Push branch
-- Create MR
+- `MergeRequestService`
 - Finalize log
 
 ---
