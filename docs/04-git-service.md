@@ -10,7 +10,7 @@ GitService
 ### Responsabilità
 - Incapsula tutte le operazioni Git
 - Fornisce API deterministiche
-- Normalizza output Git
+- Ritorna output Git testuale o strutture mirate dove previsto
 - Gestisce errori Git
 
 ### Operazioni supportate
@@ -19,12 +19,12 @@ GitService
 - fetch
 - checkout branch
 - create branch
-- get diff
-- list changed files
-- get commit message
+- get remote delta (commit e file modificati)
+- get HEAD sha
+- get HEAD subject
 - commit
 - push
-- create merge request
+- create pull request tramite GitHub CLI
 
 ### Input
 - Path del repo
@@ -32,12 +32,13 @@ GitService
 
 ### Output
 - Strutture normalizzate
-- stdout / stderr
-- exit code
+- stdout testuale per i comandi diretti
+- errori intercettati per remote delta
 
 ### Dipendenze
-- child_process / execa
+- child_process `execSync`
 - RepoContextService
+- RunLoggerService
 
 ### Non deve fare
 - Non deve decidere flusso

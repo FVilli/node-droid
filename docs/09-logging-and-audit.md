@@ -85,6 +85,7 @@ node-droid/audit/mqtt-archiver/ab12cd34ef56/task.build
 - `run.status`
 - `task.status`
 - `task.attempt`
+- `task.context`
 - `task.build`
 - `task.tool`
 - `task.llm`
@@ -98,7 +99,7 @@ Tutti i messaggi pubblicano un JSON con questa struttura base:
   "type": "task.build",
   "ts": 1775172000000,
   "app": "core",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "repoId": "mqtt-archiver",
   "runId": "ab12cd34ef56",
   "branch": "ai/ab12cd34ef56",
@@ -166,6 +167,20 @@ Tutti i messaggi pubblicano un JSON con questa struttura base:
   "success": true,
   "exitCode": 0,
   "durationMs": 1240
+}
+```
+
+`task.context`
+```json
+{
+  "taskId": "3f29a2d9f7c1",
+  "title": "Handle reconnect after broker drop",
+  "phase": "execution",
+  "targetDir": "src/mqtt",
+  "hasRootContext": true,
+  "hasTargetContext": false,
+  "shouldBootstrap": true,
+  "allowRefresh": true
 }
 ```
 

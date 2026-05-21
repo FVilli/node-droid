@@ -8,14 +8,14 @@
 WorkspaceService
 
 ### Responsabilità
-- Scansiona la cartella `ENV.FOLDER_STORAGE`
+- Scansiona la cartella `ENV.WORKSPACE_FOLDER`
 - Scopre i repository disponibili
 - Valida la struttura di ogni repo
 - Carica e parse `repo.yml`
 - Espone la lista dei repo disponibili
 
 ### Input
-- ENV.FOLDER_STORAGE
+- ENV.WORKSPACE_FOLDER
 
 ### Output
 - Lista di RepoDescriptor (id, path, config grezza)
@@ -24,7 +24,7 @@ WorkspaceService
 ### Dipendenze
 - fs
 - path
-- JSON parser
+- YAML parser
 
 ### Non deve fare
 - Non deve clonare repo
@@ -51,9 +51,11 @@ RepoContextService
   - cartella `.ssh/`
   - cartella `.ai/`
 - Espone la configurazione finale risolta
+- Mantiene in memoria il contesto del repo attivo finche' la run e' in corso
 
 ### Input
 - RepoDescriptor (da WorkspaceService)
+- profilo LLM grezzo o override da `repo.yml`
 - ENV
 
 ### Output

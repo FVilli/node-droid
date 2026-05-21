@@ -10,14 +10,11 @@ LLMClientService
 ### Responsabilità
 - Comunica con LLM via protocollo OpenAI-compatible
 - Supporta modelli commerciali e self-hosted
-- Gestisce:
-  - timeout
-  - retry
-  - logging
-  - rate limit
+- Esegue chiamate chat/completion tramite `axios`
+- Costruisce URL, payload e header tramite helper dedicati
 
 ### Input
-- Prompt
+- Messaggi chat o prompt singolo
 - Tools (opzionali)
 - Parametri modello
 
@@ -26,13 +23,15 @@ LLMClientService
 - Tool calls
 
 ### Dipendenze
-- fetch / axios / openai sdk
+- axios
+- LLMRequests
 
 ### Non deve fare
 - Non deve decidere il flusso
 - Non deve validare task
 - Non deve modificare file
 - Non deve chiamare Git
+- Non deve gestire retry o rate limit finche' non viene aggiunta una policy esplicita
 
 ---
 
@@ -89,3 +88,50 @@ PromptTemplateService
 ### Non deve fare
 - Non deve chiamare LLM
 - Non deve leggere file di progetto
+
+---
+
+## prompt.service.ts
+
+### Nome
+PromptService
+
+### Responsabilità
+- Costruisce i messaggi finali per esecuzione task e retry
+- Integra template, istruzioni AI e contesto locale
+
+### Input
+- Task
+- BuildResult in fase di retry
+
+### Output
+- Messaggi chat per LLMClientService
+
+### Dipendenze
+- PromptTemplateService
+- AIInstructionsService
+- ContextFileService
+
+### Non deve fare
+- Non deve chiamare LLM
+- Non deve eseguire tool
+
+---
+
+## translate-to-english.service.ts
+
+### Nome
+TranslateToEnglishService
+
+### Responsabilità
+- Normalizza titolo e descrizione dei task in inglese quando necessario
+
+### Input
+- Lista Task
+
+### Output
+- Lista Task aggiornata
+
+### Non deve fare
+- Non deve eseguire task
+- Non deve modificare file del repo

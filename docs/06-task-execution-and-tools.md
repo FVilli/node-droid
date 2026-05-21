@@ -13,7 +13,8 @@ TaskExecutorService
 - Fornisce tool virtuali all’LLM
 - Gestisce retry su errore
 - Esegue il gate di validazione (build)
-- Determina l’outcome del task (`DONE` / `FAILED` / `BLOCKED`)
+- Determina l’outcome del task (`DONE` / `FAILED` / `BLOCKED` / `INTERRUPTED`)
+- Se possibile limita install/build ai package che contengono file modificati
 
 ### Input
 - Task
@@ -21,7 +22,7 @@ TaskExecutorService
 - RunState
 
 ### Output
-- TaskOutcome (`DONE` / `FAILED` / `BLOCKED`)
+- TaskOutcome (`DONE` / `FAILED` / `BLOCKED` / `INTERRUPTED`)
 - Patch applicate
 - Log degli step
 
@@ -31,6 +32,9 @@ TaskExecutorService
 - BuildService
 - RunLoggerService
 - RunStateService
+- PromptService
+- LLMProfileResolverService
+- RepoContextService
 
 ### Non deve fare
 - Non deve decidere l’ordine dei task
@@ -122,13 +126,15 @@ L’LLM deve preferire tool mirati rispetto a riscritture complete:
 
 ## Dependency Policy
 
-L’LLM non deve installare dipendenze.
+L’LLM non deve installare dipendenze direttamente tramite tool.
 
 Se il task richiede una libreria o un pacchetto npm non presente:
 
-- il task puo` terminare come `BLOCKED`
+- il task puo' terminare come `BLOCKED`
 - il modello deve indicare quale pacchetto consiglia di aggiungere
-- il modello deve spiegare in breve perche` e` necessario
+- il modello deve spiegare in breve perche' e' necessario
+
+Nota: il sistema puo' eseguire comandi di install configurati durante la validazione build; questo non autorizza l'LLM ad aggiungere dipendenze arbitrarie.
 
 ---
 
@@ -138,11 +144,11 @@ Il contesto operativo locale viene gestito tramite file `ai-context.md`.
 
 Regole:
 
-- puo` esistere un `ai-context.md` in root
-- puo` esistere un `ai-context.md` in cartelle rilevanti del progetto
+- puo' esistere un `ai-context.md` in root
+- puo' esistere un `ai-context.md` in cartelle rilevanti del progetto
 - il modello deve leggerli prima di espandere troppo il browsing
-- il modello puo` fare bootstrap di `ai-context.md` se manca
-- il modello puo` fare refresh & compact quando il task modifica conoscenza locale utile
+- il modello puo' fare bootstrap di `ai-context.md` se manca
+- il modello puo' fare refresh & compact quando il task modifica conoscenza locale utile
 - il task resta prioritario rispetto alla manutenzione degli `ai-context.md`
 
 Template ufficiale:
@@ -151,7 +157,7 @@ Template ufficiale:
 # AI Context
 
 ## Purpose
-Breve descrizione della responsabilita` della cartella o del modulo.
+Breve descrizione della responsabilita' della cartella o del modulo.
 
 ## Key Files
 - `file-a.ts`: ruolo essenziale

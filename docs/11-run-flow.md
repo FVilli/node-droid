@@ -15,36 +15,37 @@ Questo documento descrive il flusso completo di una run.
 ## Fase 1 — Trigger
 
 - `RunOrchestratorService` prepara il contesto repo
+- assicura che il repo sia clonato
 - legge il delta remoto Git
-- se trova commit con tag `[ai]` avvia la run
+- fa pull della base branch
+- se trova commit con tag `[ai]` prosegue con l'estrazione task
 
 ---
 
-## Fase 2 — Bootstrap
+## Fase 2 — Task extraction preliminare
+
+- Legge solo i file modificati nel delta remoto
+- Considera file `.ts` e file `ai-tasks.md`
+- Estrae task con `TaskExtractionService`
+- Normalizza e ordina con `TaskNormalizationService`
+- Se non trova task, salta la run
+- Traduce/normalizza i task con `TranslateToEnglishService`
+
+---
+
+## Fase 3 — Bootstrap
 
 - Genera runId
 - Aggiorna `RunStateService`
-- Crea branch
-- Checkout branch
 - Inizializza log
+- Crea e checkout branch di run
 
 ---
 
-## Fase 3 — Context extraction
+## Fase 4 — Queue setup
 
-- Diff
-- Lista file
-- Commit message
-- Snapshot
-
----
-
-## Fase 4 — Task extraction
-
-- Per ogni file rilevante:
-  - TaskExtractionService
-- `TaskNormalizationService`
 - `TaskQueueService.load()`
+- Imposta phase `TASK_EXECUTION`
 
 ---
 
@@ -64,6 +65,8 @@ Per ogni task:
 
 ## Fase 6 — Finalization
 
+- Rimuove `ai-tasks.md` processati
+- Sostituisce i marker `ai:` nei file `.ts` con righe di esito
 - Commit bot
 - Push branch
 - `MergeRequestService`

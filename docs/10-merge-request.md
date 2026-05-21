@@ -1,4 +1,4 @@
-# node-droid — Merge Request
+# node-droid — Merge Request / Pull Request
 
 ---
 
@@ -8,7 +8,7 @@
 MergeRequestService
 
 ### Responsabilità
-- Crea merge request
+- Crea pull request GitHub tramite GitService
 - Imposta titolo deterministico
 - Compila descrizione dalla run summary
 - Delega la creazione della PR a `GitService`
@@ -20,7 +20,7 @@ MergeRequestService
 - Token opzionale
 
 ### Output
-- MR URL
+- PR URL
 
 ### Dipendenze
 - GitService

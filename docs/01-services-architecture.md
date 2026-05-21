@@ -32,6 +32,9 @@ src/
   services/
     *.service.ts
 
+  helpers/
+    *.ts
+
   libs/
     *.ts
 ```
@@ -96,6 +99,7 @@ I servizi sono suddivisi in:
 
 ### Logging & audit
 - `run-logger.service.ts`
+- `audit-publisher.service.ts`
 
 ### Merge Request
 - `merge-request.service.ts`

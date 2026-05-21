@@ -10,7 +10,7 @@ TaskExtractionService
 ### Responsabilità
 - Estrae task da contenuti umani / semi-strutturati
 - Supporta:
-  - TODO nei file .ts
+  - commenti `ai:` nei file `.ts`
   - File `ai-tasks.md`
 - Ritorna task grezzi
 
@@ -28,7 +28,7 @@ TaskExtractionService
 ### Non deve fare
 - Non deve deduplicare
 - Non deve ordinare
-- Non deve assegnare ID
+- Non deve assegnare ID finali deterministici
 - Non deve eseguire task
 - Non deve modificare file
 
@@ -72,7 +72,7 @@ TaskQueueService
 - Mantiene stato dei task
 - Espone `next()`
 - Espone `load()`, `mark()` e `list()`
-- Tiene traccia di `TODO` / `DONE` / `FAILED` / `BLOCKED`
+- Tiene traccia di `TODO` / `DONE` / `FAILED` / `BLOCKED` / `INTERRUPTED`
 
 ### Input
 - Lista Task normalizzati
@@ -97,7 +97,7 @@ TaskQueueService
 
 Gli outcome supportati dal sistema sono:
 
-- `DONE`: il task e` stato completato e la build e` passata
-- `FAILED`: il task non e` stato completato nel perimetro attuale
+- `DONE`: il task e' stato completato e la build e' passata
+- `FAILED`: il task non e' stato completato nel perimetro attuale
 - `BLOCKED`: il task richiede un input esterno o una nuova dipendenza e non deve essere forzato con workaround scadenti
-- `INTERRUPTED`: il task e` stato fermato per shutdown o stop della run
+- `INTERRUPTED`: il task e' stato fermato per shutdown o stop della run
