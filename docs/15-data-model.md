@@ -77,6 +77,7 @@ Campi principali:
 - `file`
 - `line`
 - `relatedFiles`
+- `analysis`
 - `status`
 - `result`
 - `blocker`
@@ -90,8 +91,26 @@ Status possibili:
 - `FAILED`
 - `INTERRUPTED`
 - `BLOCKED`
+- `DEFERRED`
 
 `blocker` descrive requisiti esterni come dipendenze mancanti, accessi mancanti o requisiti non disponibili.
+`analysis` contiene il piano operativo prodotto prima dell'esecuzione.
+`DEFERRED` indica che il task non e' stato eseguito perche' appartiene a un blocco successivo fermato da un blocco precedente con errori.
+
+---
+
+## TaskBlock
+
+Gruppo ordinato di task pianificati dopo l'estrazione e prima dell'esecuzione.
+
+Campi principali:
+
+- `id`
+- `title`
+- `targetDir`
+- `tasks`
+
+Se un blocco chiude con errori, i blocchi successivi vengono salvati come file Markdown in `.ai/<run>/deferred-task-blocks/` per poter essere reinseriti in una run futura.
 
 ---
 
@@ -183,7 +202,6 @@ Tipi evento:
 - `run.status`
 - `task.status`
 - `task.attempt`
-- `task.context`
 - `task.build`
 - `task.tool`
 - `task.llm`

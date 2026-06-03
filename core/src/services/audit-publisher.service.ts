@@ -11,7 +11,10 @@ export class AuditPublisherService implements OnApplicationShutdown {
 
   constructor(private readonly runState: RunStateService) {}
 
-  async publish(type: AuditEventType, payload: Record<string, any>): Promise<void> {
+  async publish(
+    type: AuditEventType,
+    payload: Record<string, any>,
+  ): Promise<void> {
     if (!ENV.MQTT_AUDIT_ENABLED) return;
 
     const client = await this.ensureClient();
@@ -35,7 +38,7 @@ export class AuditPublisherService implements OnApplicationShutdown {
             return;
           }
           resolve();
-        }
+        },
       );
     });
   }
@@ -78,7 +81,9 @@ export class AuditPublisherService implements OnApplicationShutdown {
 
       const onError = () => {
         cleanup();
-        try { client.end(true); } catch {}
+        try {
+          client.end(true);
+        } catch {}
         this.client = undefined;
         this.connectPromise = undefined;
         resolve(null);
@@ -91,7 +96,11 @@ export class AuditPublisherService implements OnApplicationShutdown {
     return this.connectPromise;
   }
 
-  private buildEvent(type: AuditEventType, payload: Record<string, any>, snapshot: ReturnType<RunStateService['getSnapshot']>): AuditEvent {
+  private buildEvent(
+    type: AuditEventType,
+    payload: Record<string, any>,
+    snapshot: ReturnType<RunStateService['getSnapshot']>,
+  ): AuditEvent {
     const repoId = snapshot.context?.repoId;
     const runId = snapshot.context?.runId;
     const branch = snapshot.context?.branchName;

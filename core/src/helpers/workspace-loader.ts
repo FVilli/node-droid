@@ -6,8 +6,9 @@ import { RepoDefinition, RepoDescriptor } from '../types';
 export class WorkspaceLoader {
   static listRepos(workspaceFolder: string): RepoDescriptor[] {
     if (!fs.existsSync(workspaceFolder)) return [];
-    return fs.readdirSync(workspaceFolder)
-      .map(id => this.loadRepo(path.join(workspaceFolder, id), id))
+    return fs
+      .readdirSync(workspaceFolder)
+      .map((id) => this.loadRepo(path.join(workspaceFolder, id), id))
       .filter(Boolean) as RepoDescriptor[];
   }
 

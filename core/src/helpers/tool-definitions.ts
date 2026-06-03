@@ -5,23 +5,25 @@ export class ToolDefinitions {
         type: 'function',
         function: {
           name: 'list_files',
-          description: 'List files and folders in a directory relative to the repo root. Prefer this over get_folder_content.',
+          description:
+            'List files and folders in a directory relative to the repo root. Prefer this over get_folder_content.',
           parameters: {
             type: 'object',
-            properties: { path: { type: 'string' } }
-          }
-        }
+            properties: { path: { type: 'string' } },
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'get_folder_content',
-          description: 'Legacy alias for listing files and folders in a directory relative to the repo root.',
+          description:
+            'Legacy alias for listing files and folders in a directory relative to the repo root.',
           parameters: {
             type: 'object',
-            properties: { path: { type: 'string' } }
-          }
-        }
+            properties: { path: { type: 'string' } },
+          },
+        },
       },
       {
         type: 'function',
@@ -31,89 +33,94 @@ export class ToolDefinitions {
           parameters: {
             type: 'object',
             properties: { path: { type: 'string' } },
-            required: ['path']
-          }
-        }
+            required: ['path'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'read_file_range',
-          description: 'Read a specific line range from a text file in the repo.',
+          description:
+            'Read a specific line range from a text file in the repo.',
           parameters: {
             type: 'object',
             properties: {
               path: { type: 'string' },
               startLine: { type: 'number' },
-              endLine: { type: 'number' }
+              endLine: { type: 'number' },
             },
-            required: ['path', 'startLine', 'endLine']
-          }
-        }
+            required: ['path', 'startLine', 'endLine'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'create_file',
-          description: 'Create a new text file in the repo. Fails if the file already exists.',
+          description:
+            'Create a new text file in the repo. Fails if the file already exists.',
           parameters: {
             type: 'object',
             properties: {
               path: { type: 'string' },
-              content: { type: 'string' }
+              content: { type: 'string' },
             },
-            required: ['path', 'content']
-          }
-        }
+            required: ['path', 'content'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'replace_in_file',
-          description: 'Replace existing text in a file. Prefer this over save_file for targeted edits.',
+          description:
+            'Replace existing text in a file. Prefer this over save_file for targeted edits.',
           parameters: {
             type: 'object',
             properties: {
               path: { type: 'string' },
               search: { type: 'string' },
               replace: { type: 'string' },
-              all: { type: 'boolean' }
+              all: { type: 'boolean' },
             },
-            required: ['path', 'search', 'replace']
-          }
-        }
+            required: ['path', 'search', 'replace'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'insert_in_file',
-          description: 'Insert text before or after an anchor string in a file.',
+          description:
+            'Insert text before or after an anchor string in a file.',
           parameters: {
             type: 'object',
             properties: {
               path: { type: 'string' },
               content: { type: 'string' },
               after: { type: 'string' },
-              before: { type: 'string' }
+              before: { type: 'string' },
             },
-            required: ['path', 'content']
-          }
-        }
+            required: ['path', 'content'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'save_file',
-          description: 'Save or create a text file in the repo. Use only when a targeted tool is not suitable.',
+          description:
+            'Save or create a text file in the repo. Use only when a targeted tool is not suitable.',
           parameters: {
             type: 'object',
             properties: {
               path: { type: 'string' },
-              content: { type: 'string' }
+              content: { type: 'string' },
             },
-            required: ['path', 'content']
-          }
-        }
+            required: ['path', 'content'],
+          },
+        },
       },
       {
         type: 'function',
@@ -126,28 +133,29 @@ export class ToolDefinitions {
               query: { type: 'string' },
               path: { type: 'string' },
               caseSensitive: { type: 'boolean' },
-              maxResults: { type: 'number' }
+              maxResults: { type: 'number' },
             },
-            required: ['query']
-          }
-        }
+            required: ['query'],
+          },
+        },
       },
       {
         type: 'function',
         function: {
           name: 'search_file',
-          description: 'Search for file names that match a substring under a directory.',
+          description:
+            'Search for file names that match a substring under a directory.',
           parameters: {
             type: 'object',
             properties: {
               query: { type: 'string' },
               path: { type: 'string' },
               caseSensitive: { type: 'boolean' },
-              maxResults: { type: 'number' }
+              maxResults: { type: 'number' },
             },
-            required: ['query']
-          }
-        }
+            required: ['query'],
+          },
+        },
       },
     ];
   }

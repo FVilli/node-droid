@@ -92,7 +92,7 @@ Runtime environment is centralized in `core/src/env.ts`. Key defaults include:
 - `LLM_API_URL`: OpenAI-compatible API base URL.
 - `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`: model profile defaults.
 - `AI_COMMIT_TAG`: default trigger tag `[ai]`.
-- `AI_INSTRUCTIONS_FILE`, `AI_CONTEXT_FILE`, `AI_TODO_FILE`: task/context file names.
+- `AI_INSTRUCTIONS_FILE`, `AI_TODO_FILE`: task/instruction file names. `AI_INSTRUCTIONS_FILE` defaults to `AGENTS.md`; `AI_TODO_COMMENT` defaults to `[ai]`.
 - `MQTT_AUDIT_*`: audit stream configuration.
 
 Repo-specific runtime configuration is provided through workspace `repo.yml` files, as documented in `README.md`.

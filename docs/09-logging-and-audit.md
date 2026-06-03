@@ -85,7 +85,6 @@ node-droid/audit/mqtt-archiver/ab12cd34ef56/task.build
 - `run.status`
 - `task.status`
 - `task.attempt`
-- `task.context`
 - `task.build`
 - `task.tool`
 - `task.llm`
@@ -170,19 +169,6 @@ Tutti i messaggi pubblicano un JSON con questa struttura base:
 }
 ```
 
-`task.context`
-```json
-{
-  "taskId": "3f29a2d9f7c1",
-  "title": "Handle reconnect after broker drop",
-  "phase": "execution",
-  "targetDir": "src/mqtt",
-  "hasRootContext": true,
-  "hasTargetContext": false,
-  "shouldBootstrap": true,
-  "allowRefresh": true
-}
-```
 
 `task.tool`
 ```json

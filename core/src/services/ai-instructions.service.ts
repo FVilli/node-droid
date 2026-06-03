@@ -8,6 +8,9 @@ export class AIInstructionsService {
   constructor(private readonly repoContext: RepoContextService) {}
 
   getInstructions(task: Task): string | null {
-    return AIInstructionsHelper.getInstructions(this.repoContext.get().codePath, task);
+    return AIInstructionsHelper.getInstructions(
+      this.repoContext.get().codePath,
+      task,
+    );
   }
 }

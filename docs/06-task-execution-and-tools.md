@@ -9,6 +9,8 @@ TaskExecutorService
 
 ### Responsabilità
 - Esegue un singolo task alla volta
+- Gestisce una fase di analisi read-only prima dell'esecuzione
+- Registra un piano operativo osservabile per il task
 - Gestisce il loop di esecuzione con LLM
 - Fornisce tool virtuali all’LLM
 - Gestisce retry su errore
@@ -113,9 +115,8 @@ FileSystemToolService
 
 ## Tool Policy
 
-L’LLM deve preferire tool mirati rispetto a riscritture complete:
+Durante l'analisi sono disponibili solo tool di lettura (`list_files`, `search`, `read_file`, `read_file_range` e alias compatibili). Durante l esecuzione l'LLM deve preferire tool mirati rispetto a riscritture complete:
 
-- usare `ai-context.md` in root e nelle cartelle rilevanti come memoria locale di contesto
 - usare `list_files` per esplorare
 - usare `read_file_range` per letture focalizzate dopo `search`
 - usare `replace_in_file` e `insert_in_file` per modifiche locali
@@ -137,51 +138,3 @@ Se il task richiede una libreria o un pacchetto npm non presente:
 Nota: il sistema puo' eseguire comandi di install configurati durante la validazione build; questo non autorizza l'LLM ad aggiungere dipendenze arbitrarie.
 
 ---
-
-## CTX Strategy
-
-Il contesto operativo locale viene gestito tramite file `ai-context.md`.
-
-Regole:
-
-- puo' esistere un `ai-context.md` in root
-- puo' esistere un `ai-context.md` in cartelle rilevanti del progetto
-- il modello deve leggerli prima di espandere troppo il browsing
-- il modello puo' fare bootstrap di `ai-context.md` se manca
-- il modello puo' fare refresh & compact quando il task modifica conoscenza locale utile
-- il task resta prioritario rispetto alla manutenzione degli `ai-context.md`
-
-Template ufficiale:
-
-```md
-# AI Context
-
-## Purpose
-Breve descrizione della responsabilita' della cartella o del modulo.
-
-## Key Files
-- `file-a.ts`: ruolo essenziale
-- `file-b.ts`: ruolo essenziale
-
-## Local Rules
-- Convenzioni locali da rispettare in questa cartella.
-
-## Patterns
-- Pattern architetturali o strutturali ricorrenti.
-
-## Dependencies
-- Dipendenze locali o integrazioni importanti per questa cartella.
-
-## Gotchas
-- Trappole, file generati, punti fragili o errori facili.
-
-## Open Notes
-- Note locali utili ma non ancora del tutto consolidate.
-```
-
-Vincoli:
-
-- deve restare corto e operativo
-- le sezioni irrilevanti vanno omesse
-- target indicativo: 200-300 parole
-- non deve diventare storico dei task o documentazione completa del modulo

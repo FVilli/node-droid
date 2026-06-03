@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { RunContext, RunPhase, RunSnapshot, RunStatus, TaskOutcome } from '../types';
+import {
+  RunContext,
+  RunPhase,
+  RunSnapshot,
+  RunStatus,
+  TaskOutcome,
+} from '../types';
 
 @Injectable()
 export class RunStateService {
@@ -28,11 +34,22 @@ export class RunStateService {
     this.snapshot.attempt = 0;
   }
 
-  setPhase(phase: RunPhase) { this.snapshot.phase = phase; }
-  setStatus(status: RunStatus) { this.snapshot.status = status; }
-  setContext(ctx: RunContext) { this.snapshot.context = ctx; }
+  setPhase(phase: RunPhase) {
+    this.snapshot.phase = phase;
+  }
+  setStatus(status: RunStatus) {
+    this.snapshot.status = status;
+  }
+  setContext(ctx: RunContext) {
+    this.snapshot.context = ctx;
+  }
 
-  setCurrentTask(task?: { id?: string; title: string; index?: number; status?: TaskOutcome }) {
+  setCurrentTask(task?: {
+    id?: string;
+    title: string;
+    index?: number;
+    status?: TaskOutcome;
+  }) {
     this.snapshot.currentTask = task;
     this.snapshot.attempt = 0;
   }
@@ -47,16 +64,49 @@ export class RunStateService {
     this.snapshot.attempt = 0;
   }
 
-  resetAttempt() { this.snapshot.attempt = 0; }
-  incAttempt() { this.snapshot.attempt++; }
+  resetAttempt() {
+    this.snapshot.attempt = 0;
+  }
+  incAttempt() {
+    this.snapshot.attempt++;
+  }
 
-  getPhase() { return this.snapshot.phase; }
-  getStatus() { return this.snapshot.status; }
-  getContext() { return this.snapshot.context; }
-  getCurrentTask() { return this.snapshot.currentTask; }
-  getAttempt() { return this.snapshot.attempt; }
-  getSnapshot(): RunSnapshot { return { ...this.snapshot, currentTask: this.snapshot.currentTask ? { ...this.snapshot.currentTask } : undefined, context: this.snapshot.context ? { ...this.snapshot.context, triggerCommit: this.snapshot.context.triggerCommit ? { ...this.snapshot.context.triggerCommit } : undefined } : undefined }; }
+  getPhase() {
+    return this.snapshot.phase;
+  }
+  getStatus() {
+    return this.snapshot.status;
+  }
+  getContext() {
+    return this.snapshot.context;
+  }
+  getCurrentTask() {
+    return this.snapshot.currentTask;
+  }
+  getAttempt() {
+    return this.snapshot.attempt;
+  }
+  getSnapshot(): RunSnapshot {
+    return {
+      ...this.snapshot,
+      currentTask: this.snapshot.currentTask
+        ? { ...this.snapshot.currentTask }
+        : undefined,
+      context: this.snapshot.context
+        ? {
+            ...this.snapshot.context,
+            triggerCommit: this.snapshot.context.triggerCommit
+              ? { ...this.snapshot.context.triggerCommit }
+              : undefined,
+          }
+        : undefined,
+    };
+  }
 
-  setShuttingDown(v: boolean) { this.snapshot.shuttingDown = v; }
-  isShuttingDown() { return this.snapshot.shuttingDown; }
+  setShuttingDown(v: boolean) {
+    this.snapshot.shuttingDown = v;
+  }
+  isShuttingDown() {
+    return this.snapshot.shuttingDown;
+  }
 }

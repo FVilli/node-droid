@@ -1,4 +1,9 @@
-import { extractTag, normalizeCommits, normalizeGitFiles, splitPipe } from '../libs/utils';
+import {
+  extractTag,
+  normalizeCommits,
+  normalizeGitFiles,
+  splitPipe,
+} from '../libs/utils';
 import { GitRemoteUpdates } from '../types';
 
 export class GitHelpers {
@@ -11,7 +16,9 @@ export class GitHelpers {
         echo "<FILES>$(git diff --name-status HEAD origin/${baseBranch} 2>/dev/null | tr '\\n' '|' | sed 's/|$//')</FILES>";
         echo "</RESULT>";
       } 2>/dev/null || echo "<RESULT><ERROR>Impossibile completare l'operazione</ERROR></RESULT>"
-    `.replace(/\s+/g, ' ').trim();
+    `
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   static parseRemoteDelta(output: string): GitRemoteUpdates {

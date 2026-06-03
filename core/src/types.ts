@@ -1,4 +1,10 @@
-export type TaskOutcome = 'TODO' |'DONE' | 'FAILED' | 'INTERRUPTED' | 'BLOCKED';
+export type TaskOutcome =
+  | 'TODO'
+  | 'DONE'
+  | 'FAILED'
+  | 'INTERRUPTED'
+  | 'BLOCKED'
+  | 'DEFERRED';
 export type RunPhase =
   | 'IDLE'
   | 'BOOTSTRAP'
@@ -8,7 +14,12 @@ export type RunPhase =
   | 'FINALIZATION'
   | 'DONE'
   | 'FAILED';
-export type RunStatus = 'RUNNING' | 'STOPPED' | 'FAILED' | 'COMPLETED' | 'INTERRUPTED';
+export type RunStatus =
+  | 'RUNNING'
+  | 'STOPPED'
+  | 'FAILED'
+  | 'COMPLETED'
+  | 'INTERRUPTED';
 
 /* ---------- Repo & Workspace ---------- */
 
@@ -27,7 +38,11 @@ export interface RepoDefinition {
   token?: string;
 }
 
-export interface RepoDescriptor { id: string; path: string; config: RepoDefinition; }
+export interface RepoDescriptor {
+  id: string;
+  path: string;
+  config: RepoDefinition;
+}
 
 export interface RepoContext {
   id: string;
@@ -69,9 +84,14 @@ export interface Task {
   attempts?: number;
   relatedFiles?: string[];
   result?: string;
+  analysis?: string;
   status: TaskOutcome;
   blocker?: {
-    type: 'missing_dependency' | 'missing_requirement' | 'missing_access' | 'unknown';
+    type:
+      | 'missing_dependency'
+      | 'missing_requirement'
+      | 'missing_access'
+      | 'unknown';
     message: string;
     packageName?: string;
   };
@@ -79,11 +99,29 @@ export interface Task {
   projects?: Array<{ packageJson: string; name: string }>;
 }
 
+export interface TaskBlock {
+  id: string;
+  title: string;
+  targetDir: string;
+  tasks: Task[];
+}
+
 /* ---------- Tools ---------- */
 
-export interface ToolDefinition { name: string; description: string; parameters: any; }
-export interface ToolCall { name: string; arguments: Record<string, any>; }
-export interface ToolResult { success: boolean; output?: any; error?: string; }
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: any;
+}
+export interface ToolCall {
+  name: string;
+  arguments: Record<string, any>;
+}
+export interface ToolResult {
+  success: boolean;
+  output?: any;
+  error?: string;
+}
 
 /* ---------- Build ---------- */
 
@@ -97,7 +135,12 @@ export interface BuildResult {
 
 /* ---------- Git ---------- */
 
-export interface GitRemoteUpdates { branch: string; commits: string[]; files: string[]; error?: string; }
+export interface GitRemoteUpdates {
+  branch: string;
+  commits: string[];
+  files: string[];
+  error?: string;
+}
 
 /* ---------- Run ---------- */
 
@@ -105,7 +148,12 @@ export interface RunContext {
   runId: string;
   repoId: string;
   branchName: string;
-  triggerCommit?: { hash?: string; author?: string; message: string; timestamp?: string };
+  triggerCommit?: {
+    hash?: string;
+    author?: string;
+    message: string;
+    timestamp?: string;
+  };
   startedAt: string;
 }
 
@@ -128,7 +176,6 @@ export type AuditEventType =
   | 'run.status'
   | 'task.status'
   | 'task.attempt'
-  | 'task.context'
   | 'task.build'
   | 'task.tool'
   | 'task.llm';
@@ -148,8 +195,28 @@ export interface AuditEvent {
 
 /* ---------- Logging ---------- */
 
-export type RunEvent = { ts: number; level: 'INFO' | 'WARN' | 'ERROR' | 'DRY'; message: string; emoji?: string };
-export type TaskEvent = { ts: number; kind: 'start' | 'attempt' | 'fix-attempt' | 'context' | 'llm' | 'tool' | 'build' | 'done' | 'failed' | 'blocked'; data?: any };
+export type RunEvent = {
+  ts: number;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'DRY';
+  message: string;
+  emoji?: string;
+};
+export type TaskEvent = {
+  ts: number;
+  kind:
+    | 'start'
+    | 'attempt'
+    | 'fix-attempt'
+    | 'analysis'
+    | 'llm'
+    | 'tool'
+    | 'build'
+    | 'done'
+    | 'failed'
+    | 'blocked'
+    | 'deferred';
+  data?: any;
+};
 export type RunReportTask = {
   task: Task;
   startTs?: number;

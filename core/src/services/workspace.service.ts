@@ -6,7 +6,6 @@ import { WorkspaceLoader } from '../helpers/workspace-loader';
 
 @Injectable()
 export class WorkspaceService {
-
   listRepos(): RepoDescriptor[] {
     return WorkspaceLoader.listRepos(ENV.WORKSPACE_FOLDER);
   }

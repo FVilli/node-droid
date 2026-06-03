@@ -18,7 +18,6 @@ import * as path from 'path';
 
 @Injectable()
 export class TaskExecutorService {
-
   constructor(
     private readonly llm: LLMClientService,
     private readonly tools: ToolRegistryService,
@@ -45,13 +44,17 @@ export class TaskExecutorService {
     }
 
     this.logger.taskStart(task);
+    const analysis = await this.analyzeTask(task);
 
-    const maxRetries = this.repoContext.get().agentPolicy.maxTaskRetries ?? ENV.MAX_TASK_RETRIES;
+    const maxRetries =
+      this.repoContext.get().agentPolicy.maxTaskRetries ?? ENV.MAX_TASK_RETRIES;
 
     let completed = false;
     for (let i = 0; i < maxRetries; i++) {
       if (this.runState.isShuttingDown()) {
-        this.logger.warn(`Task [${task.title}] interrupted before attempt ${i + 1}`);
+        this.logger.warn(
+          `Task [${task.title}] interrupted before attempt ${i + 1}`,
+        );
         this.runState.setCurrentTaskStatus('INTERRUPTED');
         return 'INTERRUPTED';
       }
@@ -59,7 +62,7 @@ export class TaskExecutorService {
       this.runState.incAttempt();
       this.logger.taskAttempt(task, i + 1);
 
-      const ok = await this.runOnce(task);
+      const ok = await this.runOnce(task, analysis);
       if (ok) {
         const blocker = this.extractBlocker(task.result);
         if (blocker) {
@@ -100,7 +103,9 @@ export class TaskExecutorService {
       return 'INTERRUPTED';
     }
 
-    const missing = BuildHelpers.extractMissingPackage(`${buildRes.stderr}\n${buildRes.stdout}`);
+    const missing = BuildHelpers.extractMissingPackage(
+      `${buildRes.stderr}\n${buildRes.stdout}`,
+    );
     if (missing) {
       task.blocker = {
         type: 'missing_dependency',
@@ -116,7 +121,9 @@ export class TaskExecutorService {
     this.runState.resetAttempt();
     for (let i = 0; i < maxRetries; i++) {
       if (this.runState.isShuttingDown()) {
-        this.logger.warn(`Task [${task.title}] interrupted before retry ${i + 1}`);
+        this.logger.warn(
+          `Task [${task.title}] interrupted before retry ${i + 1}`,
+        );
         this.runState.setCurrentTaskStatus('INTERRUPTED');
         return 'INTERRUPTED';
       }
@@ -149,35 +156,133 @@ export class TaskExecutorService {
     return 'FAILED';
   }
 
+  private async analyzeTask(task: Task): Promise<string> {
+    this.logger.taskAnalysisPrompt(task);
+    const previousResult = task.result;
+    const messages = this.prompt.buildTaskAnalysisMessages(task);
+    const maxToolCalls =
+      this.repoContext.get().agentPolicy.maxToolCallsPerTask ??
+      ENV.MAX_TOOL_CALLS_PER_TASK;
+
+    let ok = false;
+    try {
+      ok = await LLMRunner.runLoop(task, messages, {
+        llm: this.llm,
+        tools: this.getReadOnlyTools(),
+        logger: this.logger,
+        llmProfileResolver: this.llmProfileResolver,
+        repoContext: this.repoContext,
+        maxToolCalls,
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `Task analysis failed for [${task.title}]: ${err?.message || err}`,
+      );
+    }
+
+    const analysis =
+      ok && task.result?.trim()
+        ? task.result.trim()
+        : this.buildFallbackAnalysis(task);
+    task.analysis = analysis;
+    task.result = previousResult;
+    this.logger.taskAnalysisResult(task, analysis, ok);
+    return analysis;
+  }
+
+  private getReadOnlyTools() {
+    const allowed = new Set([
+      'list_files',
+      'get_folder_content',
+      'read_file',
+      'read_file_range',
+      'search',
+      'search_file',
+    ]);
+
+    return {
+      getTools: () =>
+        this.tools
+          .getTools()
+          .filter((tool) => allowed.has(tool?.function?.name)),
+      execute: (call: { name: string; arguments: Record<string, any> }) => {
+        if (!allowed.has(call.name)) {
+          return Promise.resolve({
+            success: false,
+            error: `Tool not allowed during analysis: ${call.name}`,
+          });
+        }
+        return this.tools.execute(call);
+      },
+    };
+  }
+
+  private buildFallbackAnalysis(task: Task): string {
+    return [
+      '## Task Understanding',
+      task.title || 'No title provided.',
+      '',
+      '## Context Observed',
+      task.file ? `Primary file: ${task.file}` : 'No primary file provided.',
+      '',
+      '## Execution Plan',
+      '1. Inspect the relevant files.',
+      '2. Apply the smallest change that satisfies the task.',
+      '3. Let the system run the configured build validation.',
+      '',
+      '## Risks or Blockers',
+      'No additional analysis was produced by the model; proceed conservatively.',
+      '',
+      '## Completion Criteria',
+      '- The requested task is implemented.',
+      '- The configured build passes.',
+    ].join('\n');
+  }
+
   private extractBlocker(result?: string): Task['blocker'] | null {
     if (!result || typeof result !== 'string') return null;
     const trimmed = result.trim();
     if (!trimmed.startsWith('BLOCKED')) return null;
 
-    const typeMatch = trimmed.match(/TYPE:\s*(missing_dependency|missing_requirement|missing_access|unknown)/i);
+    const typeMatch = trimmed.match(
+      /TYPE:\s*(missing_dependency|missing_requirement|missing_access|unknown)/i,
+    );
     const packageMatch = trimmed.match(/PACKAGE:\s*(.+)/i);
     const reasonMatch = trimmed.match(/REASON:\s*([\s\S]+)/i);
 
-    const type = (typeMatch?.[1]?.toLowerCase() as NonNullable<Task['blocker']>['type'] | undefined) || 'unknown';
+    const type =
+      (typeMatch?.[1]?.toLowerCase() as
+        | NonNullable<Task['blocker']>['type']
+        | undefined) || 'unknown';
     const packageName = packageMatch?.[1]?.trim();
-    const message = reasonMatch?.[1]?.trim() || 'Task blocked by an external requirement.';
+    const message =
+      reasonMatch?.[1]?.trim() || 'Task blocked by an external requirement.';
 
     return {
       type,
-      packageName: packageName && packageName !== '<package-name-or-empty>' ? packageName : undefined,
+      packageName:
+        packageName && packageName !== '<package-name-or-empty>'
+          ? packageName
+          : undefined,
       message,
     };
   }
 
-  private async runOnce(task: Task): Promise<boolean> {
-    const messages = await this.prompt.buildTaskExecutionMessages(task);
+  private async runOnce(task: Task, analysis: string): Promise<boolean> {
+    const messages = await this.prompt.buildTaskExecutionMessages(
+      task,
+      analysis,
+    );
     this.logger.promptToLLM(task);
     const ok = await this.runLLMLoop(task, messages);
     this.logger.llmResult(task, ok);
     return ok;
   }
 
-  private async runOnceAfterBuildFailure(task: Task, buildRes: BuildResult): Promise<boolean> {
+  private async runOnceAfterBuildFailure(
+    task: Task,
+    buildRes: BuildResult,
+  ): Promise<boolean> {
     if (this.runState.isShuttingDown()) return false;
     this.logger.taskRetryPrompt(task);
     LLMRunner.warnRetry(this.logger, task);
@@ -196,7 +301,7 @@ export class TaskExecutorService {
 
   private getPackageDirsForTask(task: Task): string[] {
     const touched = this.logger.getTaskFilesTouched(task);
-    const codeFiles = touched.filter(f => this.isCodeFile(f));
+    const codeFiles = touched.filter((f) => this.isCodeFile(f));
     if (!codeFiles.length) return [];
     const root = this.repoContext.get().codePath;
     const dirs = new Set<string>();
@@ -225,15 +330,32 @@ export class TaskExecutorService {
   private isCodeFile(filePath: string): boolean {
     const ext = path.extname(filePath || '').toLowerCase();
     const codeExts = new Set([
-      '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-      '.sh', '.bash', '.zsh',
-      '.py', '.rb', '.php', '.java', '.go', '.rs',
-      '.html', '.htm', '.css', '.scss'
+      '.ts',
+      '.tsx',
+      '.js',
+      '.jsx',
+      '.mjs',
+      '.cjs',
+      '.sh',
+      '.bash',
+      '.zsh',
+      '.py',
+      '.rb',
+      '.php',
+      '.java',
+      '.go',
+      '.rs',
+      '.html',
+      '.htm',
+      '.css',
+      '.scss',
     ]);
     return codeExts.has(ext);
   }
 
-  private getProjectsForDirs(packageDirs: string[]): Array<{ packageJson: string; name: string }> {
+  private getProjectsForDirs(
+    packageDirs: string[],
+  ): Array<{ packageJson: string; name: string }> {
     const root = this.repoContext.get().codePath;
     const out: Array<{ packageJson: string; name: string }> = [];
     for (const dir of packageDirs) {
@@ -251,14 +373,16 @@ export class TaskExecutorService {
 
   private async runLLMLoop(task: Task, messages: any[]): Promise<boolean> {
     // IMPORTANTE: qui NON controlliamo shutdown a metà di un’operazione atomica
-    const maxToolCalls = this.repoContext.get().agentPolicy.maxToolCallsPerTask ?? ENV.MAX_TOOL_CALLS_PER_TASK;
+    const maxToolCalls =
+      this.repoContext.get().agentPolicy.maxToolCallsPerTask ??
+      ENV.MAX_TOOL_CALLS_PER_TASK;
     return LLMRunner.runLoop(task, messages, {
       llm: this.llm,
       tools: this.tools,
       logger: this.logger,
       llmProfileResolver: this.llmProfileResolver,
       repoContext: this.repoContext,
-      maxToolCalls
+      maxToolCalls,
     });
   }
 }

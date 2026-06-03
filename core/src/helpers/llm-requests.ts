@@ -16,7 +16,7 @@ export class LLMRequests {
       max_tokens: profile.maxTokens,
       messages,
       tools,
-      tool_choice: tools && tools.length ? 'auto' : undefined
+      tool_choice: tools && tools.length ? 'auto' : undefined,
     };
   }
 }

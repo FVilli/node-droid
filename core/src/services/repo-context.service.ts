@@ -11,6 +11,11 @@ export class RepoContextService {
     return this.ctx;
   }
 
-  get(): RepoContext { if (!this.ctx) throw new Error('RepoContext not set'); return this.ctx; }
-  clear() { this.ctx = undefined; }
+  get(): RepoContext {
+    if (!this.ctx) throw new Error('RepoContext not set');
+    return this.ctx;
+  }
+  clear() {
+    this.ctx = undefined;
+  }
 }

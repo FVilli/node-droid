@@ -12,21 +12,25 @@ export class TaskParsers {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
-      // // ai: ...
+      // // [ai] ...
       if (line.startsWith('//') && line.includes(tag)) {
         const body = line.split(tag)[1]?.trim();
         if (!body) continue;
         const title = body;
         const descLines: string[] = [];
         let j = i + 1;
-        while (j < lines.length && lines[j].trim().startsWith('//') && !lines[j].includes(tag)) {
+        while (
+          j < lines.length &&
+          lines[j].trim().startsWith('//') &&
+          !lines[j].includes(tag)
+        ) {
           const desc = lines[j].replace(/^(\s*\/\/)\s?/, '').trim();
           if (desc) descLines.push(desc);
           j++;
         }
         const codeSnippet = this.captureAdjacentCode(lines, j);
         const extraDesc = descLines.length ? descLines.join('\n') : '';
-        
+
         tasks.push({
           id: nanoid(4),
           source: 'ts',
@@ -41,7 +45,7 @@ export class TaskParsers {
         i = j - 1;
       }
 
-      // /* ai: ... */
+      // /* [ai] ... */
       if (line.startsWith('/*') && line.includes(tag)) {
         let block = line.split(tag)[1]?.trim() || '';
         let j = i + 1;
@@ -74,7 +78,7 @@ export class TaskParsers {
         if (current) tasks.push(current);
 
         const body = bullet[1].trim();
-        const [title, ...rest] = body.split('|').map(s => s.trim());
+        const [title, ...rest] = body.split('|').map((s) => s.trim());
 
         current = {
           id: nanoid(4),
@@ -111,10 +115,13 @@ export class TaskParsers {
 
   private static parseBlock(block: string, file: string, line: number): Task[] {
     const out: Task[] = [];
-    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = block
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
 
     // Lista
-    if (lines.some(l => l.startsWith('-'))) {
+    if (lines.some((l) => l.startsWith('-'))) {
       for (const l of lines) {
         if (!l.startsWith('-')) continue;
         const body = l.replace(/^-/, '').trim();
@@ -150,13 +157,23 @@ export class TaskParsers {
     return out;
   }
 
-  private static captureAdjacentCode(lines: string[], startIndex: number): string {
+  private static captureAdjacentCode(
+    lines: string[],
+    startIndex: number,
+  ): string {
     let k = startIndex;
     while (k < lines.length && !lines[k].trim()) k++;
     if (k >= lines.length) return '';
     const firstLine = lines[k];
     const firstTrim = firstLine.trim();
-    if (firstTrim.startsWith('//') || firstTrim.startsWith('/*') || firstTrim.startsWith('*') || firstTrim.startsWith('{') || firstTrim.startsWith('}')) return '';
+    if (
+      firstTrim.startsWith('//') ||
+      firstTrim.startsWith('/*') ||
+      firstTrim.startsWith('*') ||
+      firstTrim.startsWith('{') ||
+      firstTrim.startsWith('}')
+    )
+      return '';
     const snippet: string[] = [firstLine];
     if (firstTrim.startsWith('@')) {
       let next = k + 1;
@@ -175,7 +192,7 @@ export class TaskParsers {
       `${prefix}*.tsx`,
       `${prefix}*.jsx`,
       `${prefix}*.json`,
-      `${prefix}*.md`
+      `${prefix}*.md`,
     ];
   }
 }

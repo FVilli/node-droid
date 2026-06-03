@@ -11,7 +11,6 @@ import { GitCommands } from '../helpers/git-commands';
 
 @Injectable()
 export class GitService {
-
   constructor(
     private readonly logger: RunLoggerService,
     private readonly repoContext: RepoContextService,
@@ -20,12 +19,22 @@ export class GitService {
   // --- helpers ---
   private run(cmd: string) {
     const { codePath } = this.repoContext.get();
-    return execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
+    return execSync(cmd, {
+      cwd: codePath,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      shell: '/bin/bash',
+    }).trim();
   }
 
   private runRoot(cmd: string) {
     const { rootPath } = this.repoContext.get();
-    return execSync(cmd, { cwd: rootPath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' }).trim();
+    return execSync(cmd, {
+      cwd: rootPath,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      shell: '/bin/bash',
+    }).trim();
   }
 
   // --- lifecycle ---
@@ -75,24 +84,39 @@ export class GitService {
 
   getLastCommits(baseBranch: string): GitRemoteUpdates {
     try {
-    const cmd = GitHelpers.buildRemoteDeltaCommand(baseBranch);
-    const out = this.run(cmd);
-    return GitHelpers.parseRemoteDelta(out);
+      const cmd = GitHelpers.buildRemoteDeltaCommand(baseBranch);
+      const out = this.run(cmd);
+      return GitHelpers.parseRemoteDelta(out);
     } catch (err: any) {
       console.error('Error getting remote commits:', err);
-      return { branch: baseBranch, commits: [], files: [], error: err.message || String(err) };
+      return {
+        branch: baseBranch,
+        commits: [],
+        files: [],
+        error: err.message || String(err),
+      };
     }
   }
 
-  createPR(baseBranch: string, branch: string, title: string, body: string, token?: string) {
+  createPR(
+    baseBranch: string,
+    branch: string,
+    title: string,
+    body: string,
+    token?: string,
+  ) {
     const { aiPath } = this.repoContext.get();
     fs.mkdirSync(aiPath, { recursive: true });
     const bodyPath = path.join(aiPath, `pr-body-${Date.now()}.md`);
     fs.writeFileSync(bodyPath, body, 'utf-8');
     try {
-      return this.run(GitCommands.createPr(baseBranch, branch, title, body, token, bodyPath));
+      return this.run(
+        GitCommands.createPr(baseBranch, branch, title, body, token, bodyPath),
+      );
     } finally {
-      try { fs.unlinkSync(bodyPath); } catch {}
+      try {
+        fs.unlinkSync(bodyPath);
+      } catch {}
     }
   }
 

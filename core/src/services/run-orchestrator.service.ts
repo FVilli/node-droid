@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ENV } from '../env';
 import { getRunId, readRepoFileSafe } from '../libs/utils';
-import { RunContext, Task, RepoDescriptor } from '../types';
+import { RunContext, Task, TaskBlock, RepoDescriptor } from '../types';
 import { RunStateService } from './run-state.service';
 import { RepoContextService } from './repo-context.service';
 import { GitService } from './git.service';
@@ -30,7 +30,10 @@ export class RunOrchestratorService {
     private readonly mergeRequest: MergeRequestService,
   ) {}
 
-  async runRepo(repo: RepoDescriptor, isShuttingDown: boolean): Promise<boolean> {
+  async runRepo(
+    repo: RepoDescriptor,
+    isShuttingDown: boolean,
+  ): Promise<boolean> {
     const runId = getRunId();
     this.logger.event('📥', `Get updates for Repo [${repo.id}]`);
 
@@ -56,9 +59,12 @@ export class RunOrchestratorService {
     }
 
     this.git.pull(repo.config.baseBranch);
-    const headSubject = this.stripCommitTag(this.git.getHeadSubject(), ENV.AI_COMMIT_TAG);
+    const headSubject = this.stripCommitTag(
+      this.git.getHeadSubject(),
+      ENV.AI_COMMIT_TAG,
+    );
 
-    const commitAi = updates.commits.find(c => c.includes(ENV.AI_COMMIT_TAG));
+    const commitAi = updates.commits.find((c) => c.includes(ENV.AI_COMMIT_TAG));
     if (!commitAi) {
       this.logger.event('🤖', 'No AI-tagged commits found; skipping task run');
       return true;
@@ -73,7 +79,10 @@ export class RunOrchestratorService {
       const content = readRepoFileSafe(ctx.codePath, file);
       if (!content) continue;
 
-      const extracted = await this.taskExtraction.extractFromFile(file, content);
+      const extracted = await this.taskExtraction.extractFromFile(
+        file,
+        content,
+      );
       tasks = tasks.concat(extracted);
     }
 
@@ -81,7 +90,10 @@ export class RunOrchestratorService {
 
     if (tasks.length === 0) {
       const commitMessage = this.stripCommitTag(commitAi, ENV.AI_COMMIT_TAG);
-      this.logger.event('🤖', `No tasks extracted (skipping run) for commit [${commitMessage}]`);
+      this.logger.event(
+        '🤖',
+        `No tasks extracted (skipping run) for commit [${commitMessage}]`,
+      );
       return true;
     }
 
@@ -93,6 +105,7 @@ export class RunOrchestratorService {
 
     if (isShuttingDown) return false;
     await this.translateToEnglish.translateTasks(tasks);
+    const taskBlocks = this.buildTaskBlocks(tasks);
 
     const branch = `${ENV.AI_BRANCH_PREFIX}/${runId}`;
 
@@ -114,52 +127,94 @@ export class RunOrchestratorService {
       return false;
     }
 
-    this.taskQueue.load(tasks);
+    this.taskQueue.loadBlocks(taskBlocks);
+    this.logger.taskBlocksPlanned(taskBlocks);
     this.runState.setPhase('TASK_EXECUTION');
 
     let hadFailures = false;
-    while (this.taskQueue.hasPending()) {
-      const current = this.taskQueue.next();
-      if (!current) break;
+    let globalTaskIndex = 0;
 
-      const { task, index } = current;
-      this.runState.setCurrentTask({
-        id: task.id,
-        title: task.title,
-        index: index + 1,
-        status: task.status,
-      });
-      if (isShuttingDown || this.runState.isShuttingDown()) {
-        this.logger.warn('Shutdown requested; no new tasks will be started');
-        this.runState.setStatus('INTERRUPTED');
+    for (let blockIndex = 0; blockIndex < taskBlocks.length; blockIndex++) {
+      const block = taskBlocks[blockIndex];
+      this.logger.taskBlockStart(blockIndex + 1, block.title);
+
+      const blockIssues: string[] = [];
+      let interrupted = false;
+      let interruptReason = '';
+      let nextTaskIndexInBlock = 0;
+
+      for (let taskIndex = 0; taskIndex < block.tasks.length; taskIndex++) {
+        nextTaskIndexInBlock = taskIndex + 1;
+        const task = block.tasks[taskIndex];
+        globalTaskIndex++;
+        this.runState.setCurrentTask({
+          id: task.id,
+          title: task.title,
+          index: globalTaskIndex,
+          status: task.status,
+        });
+        if (isShuttingDown || this.runState.isShuttingDown()) {
+          this.logger.warn('Shutdown requested; no new tasks will be started');
+          this.runState.setStatus('INTERRUPTED');
+          interrupted = true;
+          interruptReason = 'Run interrupted before starting the next task.';
+          nextTaskIndexInBlock = taskIndex;
+          break;
+        }
+
+        const result = await this.taskExecutor.execute(task);
+        this.logger.taskOutcome(globalTaskIndex, task.title, result);
+
+        if (result === 'DONE') {
+          this.taskQueue.mark(task.id, 'DONE');
+          this.runState.setCurrentTaskStatus('DONE');
+          continue;
+        }
+
+        if (result === 'BLOCKED') {
+          this.taskQueue.mark(task.id, 'BLOCKED');
+          this.runState.setCurrentTaskStatus('BLOCKED');
+          hadFailures = true;
+          blockIssues.push(`Task [${task.title}] blocked.`);
+          this.runState.setStatus('FAILED');
+          continue;
+        }
+
+        if (result === 'FAILED') {
+          this.taskQueue.mark(task.id, 'FAILED');
+          this.runState.setCurrentTaskStatus('FAILED');
+          hadFailures = true;
+          blockIssues.push(`Task [${task.title}] failed.`);
+          this.runState.setStatus('FAILED');
+          continue;
+        }
+
+        if (result === 'INTERRUPTED') {
+          this.logger.warn(`Task [${task.title}] interrupted; stopping run`);
+          this.taskQueue.mark(task.id, 'FAILED');
+          this.runState.setStatus('INTERRUPTED');
+          this.runState.setCurrentTaskStatus('INTERRUPTED');
+          interrupted = true;
+          interruptReason = `Task [${task.title}] interrupted.`;
+          break;
+        }
+      }
+
+      if (interrupted) {
+        this.logger.taskBlockStop(blockIndex + 1, block.title, interruptReason);
+        const deferredBlocks = this.getDeferredBlocksAfterStop(
+          taskBlocks,
+          blockIndex,
+          nextTaskIndexInBlock,
+        );
+        this.deferTaskBlocks(deferredBlocks, interruptReason);
         break;
       }
 
-      const result = await this.taskExecutor.execute(task);
-      this.logger.taskOutcome(index + 1, task.title, result);
-
-      if (result === 'DONE') {
-        this.taskQueue.mark(task.id, 'DONE');
-        this.runState.setCurrentTaskStatus('DONE');
-      }
-      if (result === 'BLOCKED') {
-        this.taskQueue.mark(task.id, 'BLOCKED');
-        this.runState.setCurrentTaskStatus('BLOCKED');
-        hadFailures = true;
-        this.runState.setStatus('FAILED');
-      }
-      if (result === 'FAILED') {
-        this.taskQueue.mark(task.id, 'FAILED');
-        this.runState.setCurrentTaskStatus('FAILED');
-        hadFailures = true;
-        this.runState.setStatus('FAILED');
-      }
-
-      if (result === 'INTERRUPTED') {
-        this.logger.warn(`Task [${task.title}] interrupted; stopping run`);
-        this.taskQueue.mark(task.id, 'FAILED');
-        this.runState.setStatus('INTERRUPTED');
-        this.runState.setCurrentTaskStatus('INTERRUPTED');
+      if (blockIssues.length) {
+        const reason = blockIssues.join(' ');
+        this.logger.taskBlockStop(blockIndex + 1, block.title, reason);
+        this.deferTaskBlocks(taskBlocks.slice(blockIndex + 1), reason);
         break;
       }
     }
@@ -171,13 +226,16 @@ export class RunOrchestratorService {
 
     let status = this.runState.getStatus();
     if (status === 'INTERRUPTED') {
-      this.logger.runInterrupted('Shutdown requested; run stopped after current task');
+      this.logger.runInterrupted(
+        'Shutdown requested; run stopped after current task',
+      );
       this.runState.setPhase('FAILED');
       this.runState.clearCurrentTask();
       return false;
     }
 
-    const commitMsg = status === 'FAILED' || hadFailures ? 'Job failed.' : 'Job done !';
+    const commitMsg =
+      status === 'FAILED' || hadFailures ? 'Job failed.' : 'Job done !';
     this.git.commit(commitMsg);
     this.git.push(branch);
     if (isShuttingDown) {
@@ -188,7 +246,12 @@ export class RunOrchestratorService {
       return false;
     }
 
-    const prUrl = await this.mergeRequest.create(repo.config.baseBranch, branch, runId, repo.config.token);
+    const prUrl = await this.mergeRequest.create(
+      repo.config.baseBranch,
+      branch,
+      runId,
+      repo.config.token,
+    );
     if (prUrl) this.logger.event('📡', `Created PR [${prUrl}]`);
     if (status === 'FAILED' || hadFailures) {
       this.logger.runFailed('One or more tasks failed');
@@ -197,15 +260,105 @@ export class RunOrchestratorService {
       this.logger.runCompleted();
     }
     status = this.runState.getStatus();
-    this.runState.setPhase(this.runState.getStatus() === 'COMPLETED' ? 'DONE' : 'FAILED');
+    this.runState.setPhase(
+      this.runState.getStatus() === 'COMPLETED' ? 'DONE' : 'FAILED',
+    );
     this.runState.clearCurrentTask();
 
     return true;
   }
 
-  private async cleanupTaskMarkers(tasks: Task[], repoPath: string, runId: string) {
+  private buildTaskBlocks(tasks: Task[]): TaskBlock[] {
+    const blocks = new Map<string, TaskBlock>();
+
+    for (const task of tasks) {
+      const targetDir = this.getTaskTargetDir(task);
+      const key = this.getTaskBlockKey(task, targetDir);
+      const existing = blocks.get(key);
+      if (existing) {
+        existing.tasks.push(task);
+        continue;
+      }
+
+      blocks.set(key, {
+        id: `block-${blocks.size + 1}`,
+        title: this.getTaskBlockTitle(task, targetDir),
+        targetDir,
+        tasks: [task],
+      });
+    }
+
+    return Array.from(blocks.values());
+  }
+
+  private getTaskBlockKey(task: Task, targetDir: string): string {
+    if (task.source === 'ts' && task.file) return `file:${task.file}`;
+    return `dir:${targetDir}`;
+  }
+
+  private getTaskBlockTitle(task: Task, targetDir: string): string {
+    if (task.source === 'ts' && task.file) return task.file;
+    return targetDir === '.' ? 'Repository tasks' : `Tasks in ${targetDir}`;
+  }
+
+  private getTaskTargetDir(task: Task): string {
+    if (!task.file) return '.';
+    const dir = path.dirname(task.file);
+    return dir && dir !== '.' ? dir : '.';
+  }
+
+  private deferTaskBlocks(blocks: TaskBlock[], reason: string) {
+    if (!blocks.length) return;
+    for (const block of blocks) {
+      for (const task of block.tasks) {
+        task.status = 'DEFERRED';
+        task.result = reason;
+        this.taskQueue.mark(task.id, 'DEFERRED');
+        this.logger.taskDeferred(task, reason);
+      }
+    }
+    this.logger.writeDeferredTaskBlocks(blocks, reason);
+  }
+
+  private getDeferredBlocksAfterStop(
+    blocks: TaskBlock[],
+    stoppedBlockIndex: number,
+    nextTaskIndexInBlock: number,
+  ): TaskBlock[] {
+    const stoppedBlock = blocks[stoppedBlockIndex];
+    const remainingCurrentTasks = stoppedBlock.tasks.slice(nextTaskIndexInBlock);
+    const deferred: TaskBlock[] = [];
+
+    if (remainingCurrentTasks.length) {
+      deferred.push({
+        ...stoppedBlock,
+        id: `${stoppedBlock.id}-remaining`,
+        title: `${stoppedBlock.title} (remaining tasks)`,
+        tasks: remainingCurrentTasks,
+      });
+    }
+
+    deferred.push(...blocks.slice(stoppedBlockIndex + 1));
+    return deferred;
+  }
+
+  private async cleanupTaskMarkers(
+    tasks: Task[],
+    repoPath: string,
+    runId: string,
+  ) {
     const mdFiles = new Set<string>();
-    const tsFileTasks = new Map<string, Array<{ line?: number; title: string; taskNumber: number; runId: string; status: Task['status']; result?: string }>>();
+    const tsFileTasks = new Map<
+      string,
+      Array<{
+        line?: number;
+        title: string;
+        taskNumber: number;
+        runId: string;
+        status: Task['status'];
+        result?: string;
+      }>
+    >();
 
     for (let index = 0; index < tasks.length; index++) {
       const task = tasks[index];
@@ -221,7 +374,7 @@ export class RunOrchestratorService {
           taskNumber: index + 1,
           runId,
           status: task.status,
-          result: task.result
+          result: task.result,
         });
       }
     }
@@ -233,7 +386,9 @@ export class RunOrchestratorService {
         fs.unlinkSync(full);
         this.logger.event('🗑️', `Removed task file [${file}]`);
       } catch (err: any) {
-        this.logger.warn(`Failed to remove task file [${file}]: ${err.message || err}`);
+        this.logger.warn(
+          `Failed to remove task file [${file}]: ${err.message || err}`,
+        );
       }
     }
 
@@ -242,13 +397,19 @@ export class RunOrchestratorService {
       if (!full) continue;
       try {
         const original = fs.readFileSync(full, 'utf-8');
-        const cleaned = this.transformTaskComments(original, ENV.AI_TODO_COMMENT, tasksForFile);
+        const cleaned = this.transformTaskComments(
+          original,
+          ENV.AI_TODO_COMMENT,
+          tasksForFile,
+        );
         if (cleaned !== original) {
           fs.writeFileSync(full, cleaned, 'utf-8');
           this.logger.event('🧹', `Updated task comments in [${file}]`);
         }
       } catch (err: any) {
-        this.logger.warn(`Failed to clean task comments in [${file}]: ${err.message || err}`);
+        this.logger.warn(
+          `Failed to clean task comments in [${file}]: ${err.message || err}`,
+        );
       }
     }
   }
@@ -262,12 +423,31 @@ export class RunOrchestratorService {
   private transformTaskComments(
     content: string,
     tag: string,
-    tasks: Array<{ line?: number; title: string; taskNumber: number; runId: string; status: Task['status']; result?: string }>
+    tasks: Array<{
+      line?: number;
+      title: string;
+      taskNumber: number;
+      runId: string;
+      status: Task['status'];
+      result?: string;
+    }>,
   ): string {
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const lineSet = new Set(tasks.map(t => t.line).filter(Boolean) as number[]);
-    const titles = tasks.map(t => t.title).filter(Boolean);
-    const tasksByLine = new Map<number, { line?: number; title: string; taskNumber: number; runId: string; status: Task['status']; result?: string }>();
+    const lineSet = new Set(
+      tasks.map((t) => t.line).filter(Boolean) as number[],
+    );
+    const titles = tasks.map((t) => t.title).filter(Boolean);
+    const tasksByLine = new Map<
+      number,
+      {
+        line?: number;
+        title: string;
+        taskNumber: number;
+        runId: string;
+        status: Task['status'];
+        result?: string;
+      }
+    >();
     for (const task of tasks) {
       if (task.line) tasksByLine.set(task.line, task);
     }
@@ -280,7 +460,7 @@ export class RunOrchestratorService {
       const hasTag = new RegExp(escaped).test(line);
 
       const matchesLine = lineSet.has(lineNumber);
-      const matchesTitle = titles.some(t => line.includes(t));
+      const matchesTitle = titles.some((t) => line.includes(t));
 
       if (!hasTag || (!matchesLine && !matchesTitle)) {
         out.push(line);
@@ -288,16 +468,24 @@ export class RunOrchestratorService {
       }
 
       if (line.includes(`//`) && (matchesLine || matchesTitle)) {
-        const task = tasksByLine.get(lineNumber) || tasks.find(t => line.includes(t.title));
+        const task =
+          tasksByLine.get(lineNumber) ||
+          tasks.find((t) => line.includes(t.title));
         if (task) {
-          const statusEmoji = task.status === 'FAILED'
-            ? '❌'
-            : task.status === 'BLOCKED'
-              ? '⛔'
-              : '✅';
-          const reason = (task.status === 'FAILED' || task.status === 'BLOCKED')
-            ? ` Reason:${this.formatShortReason(task.result)}`
-            : '';
+          const statusEmoji =
+            task.status === 'FAILED'
+              ? '❌'
+              : task.status === 'BLOCKED'
+                ? '⛔'
+                : task.status === 'DEFERRED'
+                  ? '⏭️'
+                  : '✅';
+          const reason =
+            task.status === 'FAILED' ||
+            task.status === 'BLOCKED' ||
+            task.status === 'DEFERRED'
+              ? ` Reason:${this.formatShortReason(task.result)}`
+              : '';
           out.push(`// ${statusEmoji} ${task.title}`);
           out.push(`// [ai<run>:${task.runId}/${task.taskNumber}${reason}]`);
         } else {
@@ -321,6 +509,9 @@ export class RunOrchestratorService {
   private stripCommitTag(subject: string, tag: string): string {
     if (!subject || !tag) return subject;
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return subject.replace(new RegExp(escaped, 'g'), '').replace(/\s+/g, ' ').trim();
+    return subject
+      .replace(new RegExp(escaped, 'g'), '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

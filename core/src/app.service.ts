@@ -7,7 +7,6 @@ import { RunOrchestratorService } from './services/run-orchestrator.service';
 
 @Injectable()
 export class AppService implements BeforeApplicationShutdown {
-
   private isShuttingDown = false;
   private isWorking = false;
 
@@ -17,7 +16,7 @@ export class AppService implements BeforeApplicationShutdown {
     private readonly logger: RunLoggerService,
     private readonly runOrchestrator: RunOrchestratorService,
   ) {}
- 
+
   async beforeApplicationShutdown(signal: string) {
     this.logger.warn(`Shutdown requested (${signal})`);
     this.isShuttingDown = true;
@@ -35,7 +34,10 @@ export class AppService implements BeforeApplicationShutdown {
       if (!repos.length || this.isShuttingDown) return;
 
       for (const repo of repos) {
-        const shouldContinue = await this.runOrchestrator.runRepo(repo, this.isShuttingDown);
+        const shouldContinue = await this.runOrchestrator.runRepo(
+          repo,
+          this.isShuttingDown,
+        );
         if (!shouldContinue) return;
       }
       this.logger.event('🐧', 'Waiting next tick ...');

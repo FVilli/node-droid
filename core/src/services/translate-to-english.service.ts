@@ -14,13 +14,19 @@ export class TranslateToEnglishService {
 
   async translateTasks(tasks: Task[]): Promise<void> {
     for (const task of tasks) {
-      const translated = await this.translateTask(task.title, task.description || '');
+      const translated = await this.translateTask(
+        task.title,
+        task.description || '',
+      );
       task.title = translated.title;
       task.description = translated.description;
     }
   }
 
-  private async translateTask(title: string, description: string): Promise<{ title: string; description: string }> {
+  private async translateTask(
+    title: string,
+    description: string,
+  ): Promise<{ title: string; description: string }> {
     const profile = this.llmProfileResolver.resolve(this.repoContext.get());
     const messages = [
       {
@@ -31,9 +37,12 @@ export class TranslateToEnglishService {
           'Preserve code blocks, inline code, file paths, identifiers, and punctuation exactly.',
           'Return only a JSON object with keys "title" and "description".',
           'If the description is empty, return an empty string.',
-        ].join(' ')
+        ].join(' '),
       },
-      { role: 'user', content: JSON.stringify({ title, description }, null, 2) }
+      {
+        role: 'user',
+        content: JSON.stringify({ title, description }, null, 2),
+      },
     ];
 
     const response = await this.llm.chat(messages, profile);
@@ -42,7 +51,10 @@ export class TranslateToEnglishService {
     if (!parsed) return { title, description };
     return {
       title: typeof parsed.title === 'string' ? parsed.title : title,
-      description: typeof parsed.description === 'string' ? parsed.description : description
+      description:
+        typeof parsed.description === 'string'
+          ? parsed.description
+          : description,
     };
   }
 

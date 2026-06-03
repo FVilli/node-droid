@@ -47,10 +47,9 @@ Gli override per repo sono risolti tramite `repo.yml`.
 ### Trigger e file AI
 
 - `AI_COMMIT_TAG`: tag commit che attiva la run, default `[ai]`.
-- `AI_TODO_COMMENT`: marker commento task, default `ai:`.
+- `AI_TODO_COMMENT`: marker commento task, default `[ai]`.
 - `AI_TODO_FILE`: file task markdown, default `ai-tasks.md`.
-- `AI_INSTRUCTIONS_FILE`: file istruzioni, default `ai-instructions.md`.
-- `AI_CONTEXT_FILE`: file contesto locale, default `ai-context.md`.
+- `AI_INSTRUCTIONS_FILE`: file istruzioni, default `AGENTS.md`.
 - `AI_BRANCH_PREFIX`: prefisso branch di run, default `ai`.
 
 ### Build

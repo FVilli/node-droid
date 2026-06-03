@@ -42,31 +42,47 @@ Questo documento descrive il flusso completo di una run.
 
 ---
 
-## Fase 4 — Queue setup
+## Fase 4 — Block planning e queue setup
 
-- `TaskQueueService.load()`
+- Raggruppa i task normalizzati in blocchi coerenti
+- I task da commenti `.ts` vengono raggruppati per file
+- I task da `ai-tasks.md` vengono raggruppati per directory target
+- `TaskQueueService.loadBlocks()`
+- Logga il piano dei blocchi
 - Imposta phase `TASK_EXECUTION`
 
 ---
 
-## Fase 5 — Task loop
+## Fase 5 — Block e task loop
 
-Per ogni task:
+Per ogni blocco:
+
+- Avvia il blocco corrente
+- Esegue tutti i task del blocco in ordine
+- Se un task fallisce o resta bloccato, completa comunque il blocco corrente
+- Dopo un blocco con errori, ferma i blocchi successivi
+- Marca i blocchi successivi non eseguiti come `DEFERRED`
+- In caso di interruzione della run, marca come `DEFERRED` anche i task non ancora iniziati del blocco corrente
+- Scrive i blocchi differiti come Markdown in `.ai/<run>/deferred-task-blocks/`
+
+Per ogni task eseguito:
 
 - `RunStateService` aggiorna task corrente, indice e attempt
 - `TaskExecutorService`
-- Tool loop
+- Analisi read-only del task e piano operativo loggato
+- Tool loop di esecuzione
 - Build
 - Retry se necessario
 - `TaskQueueService.mark()`
-- Outcome possibile: `DONE`, `FAILED`, `BLOCKED` oppure `INTERRUPTED`
+- Outcome possibile: `DONE`, `FAILED`, `BLOCKED`, `DEFERRED` oppure `INTERRUPTED`
 
 ---
 
 ## Fase 6 — Finalization
 
 - Rimuove `ai-tasks.md` processati
-- Sostituisce i marker `ai:` nei file `.ts` con righe di esito
+- Sostituisce i marker `[ai]` nei file `.ts` con righe di esito
+- Mantiene nella documentazione della run i file Markdown dei blocchi `DEFERRED`
 - Commit bot
 - Push branch
 - `MergeRequestService`

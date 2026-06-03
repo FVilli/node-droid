@@ -2,12 +2,19 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RepoContextService } from './repo-context.service';
-import { BuildResult, RunReport, RunReportTask, RunEvent, Task, TaskEvent, TaskOutcome } from '../types';
+import {
+  BuildResult,
+  RunReport,
+  RunReportTask,
+  RunEvent,
+  Task,
+  TaskEvent,
+  TaskOutcome,
+} from '../types';
 import { ENV } from '../env';
 import { RunLogFormatters } from '../helpers/run-log-formatters';
 import { formatTimeColonDot, toLocalIso } from '../libs/utils';
 import { AuditPublisherService } from './audit-publisher.service';
-import { ContextPolicy } from './context-file.service';
 
 @Injectable()
 export class RunLoggerService {
@@ -22,7 +29,8 @@ export class RunLoggerService {
   ) {}
 
   getPrSummary(): string {
-    if (!this.report) return 'This PR was automatically created by node-droid AI automation.';
+    if (!this.report)
+      return 'This PR was automatically created by node-droid AI automation.';
     return this.buildRunSummaryMarkdown(this.report);
   }
 
@@ -92,7 +100,9 @@ export class RunLoggerService {
 
   private timeline(emoji: string, message: string) {
     const paddedEmoji = `${emoji}  `;
-    console.log(`${this.colorize(formatTimeColonDot(), 'time')} ${paddedEmoji}${message}`);
+    console.log(
+      `${this.colorize(formatTimeColonDot(), 'time')} ${paddedEmoji}${message}`,
+    );
   }
 
   private colorize(text: string, tone: 'date' | 'time'): string {
@@ -104,11 +114,12 @@ export class RunLoggerService {
   }
 
   private colorizeStatus(status: string): string {
-    const code = status === 'DONE'
-      ? '\x1b[32m'
-      : status === 'BLOCKED'
-        ? '\x1b[35m'
-        : '\x1b[33m';
+    const code =
+      status === 'DONE'
+        ? '\x1b[32m'
+        : status === 'BLOCKED'
+          ? '\x1b[35m'
+          : '\x1b[33m';
     return `${code}${status}\x1b[0m`;
   }
 
@@ -134,14 +145,27 @@ export class RunLoggerService {
     }
   }
 
-  section(title: string) { this.event('📌', title, 'INFO'); }
-  info(msg: string) { this.event('ℹ️', msg, 'INFO'); }
-  warn(msg: string) { this.event('⚠️', msg, 'WARN'); }
-  error(msg: string) { this.event('❌', msg, 'ERROR'); }
-  dry(msg: string) { this.event('🧪', msg, 'DRY'); }
+  section(title: string) {
+    this.event('📌', title, 'INFO');
+  }
+  info(msg: string) {
+    this.event('ℹ️', msg, 'INFO');
+  }
+  warn(msg: string) {
+    this.event('⚠️', msg, 'WARN');
+  }
+  error(msg: string) {
+    this.event('❌', msg, 'ERROR');
+  }
+  dry(msg: string) {
+    this.event('🧪', msg, 'DRY');
+  }
 
   triggerDetected(commitMessage: string, taskCount: number) {
-    this.event('🔬', `Trigger detected for commit [${commitMessage}] extract ${taskCount} tasks`);
+    this.event(
+      '🔬',
+      `Trigger detected for commit [${commitMessage}] extract ${taskCount} tasks`,
+    );
   }
 
   extractedTask(index: number, title: string) {
@@ -165,13 +189,27 @@ export class RunLoggerService {
   taskOutcome(index: number, title: string, status: TaskOutcome) {
     const label = String(index).padStart(2, '0');
     if (status === 'DONE') {
-      this.event('✅', `Task [${label}] ${title} -> ${this.colorizeStatus('DONE')}`);
+      this.event(
+        '✅',
+        `Task [${label}] ${title} -> ${this.colorizeStatus('DONE')}`,
+      );
       this.publishAudit('task.status', { index, title, status: 'DONE' });
       return;
     }
     if (status === 'BLOCKED') {
-      this.event('⛔', `Task [${label}] ${title} -> ${this.colorizeStatus('BLOCKED')}`);
+      this.event(
+        '⛔',
+        `Task [${label}] ${title} -> ${this.colorizeStatus('BLOCKED')}`,
+      );
       this.publishAudit('task.status', { index, title, status: 'BLOCKED' });
+      return;
+    }
+    if (status === 'DEFERRED') {
+      this.event(
+        '⏭️',
+        `Task [${label}] ${title} -> ${this.colorizeStatus('DEFERRED')}`,
+      );
+      this.publishAudit('task.status', { index, title, status: 'DEFERRED' });
       return;
     }
     const out = status === 'FAILED' ? 'FAIL' : status;
@@ -188,7 +226,10 @@ export class RunLoggerService {
     return [...log.filesTouched];
   }
 
-  setTaskProjects(task: Task, projects: Array<{ packageJson: string; name: string }>) {
+  setTaskProjects(
+    task: Task,
+    projects: Array<{ packageJson: string; name: string }>,
+  ) {
     const log = this.getTaskLog(task);
     log.task.projects = projects;
   }
@@ -210,7 +251,7 @@ export class RunLoggerService {
       llmCalls: 0,
       toolCalls: 0,
       filesTouched: [],
-      events: []
+      events: [],
     };
     if (this.report) {
       this.report.tasks.push(log);
@@ -239,7 +280,12 @@ export class RunLoggerService {
     log.attempts++;
     if (this.report) this.report.stats.totalAttempts++;
     log.events.push({ ts: Date.now(), kind: 'attempt', data: { n } });
-    this.publishAudit('task.attempt', { taskId: task.id, title: task.title, attempt: n, phase: 'initial' });
+    this.publishAudit('task.attempt', {
+      taskId: task.id,
+      title: task.title,
+      attempt: n,
+      phase: 'initial',
+    });
   }
 
   taskAttemptFix(task: Task, n: number) {
@@ -247,29 +293,34 @@ export class RunLoggerService {
     log.fixAttempts++;
     if (this.report) this.report.stats.totalFixAttempts++;
     log.events.push({ ts: Date.now(), kind: 'fix-attempt', data: { n } });
-    this.publishAudit('task.attempt', { taskId: task.id, title: task.title, attempt: n, phase: 'retry' });
-  }
-
-  taskContextPolicy(task: Task, payload: { phase: 'execution' | 'retry'; policy: ContextPolicy }) {
-    const log = this.getTaskLog(task);
-    const label = this.getTaskLabel(task);
-    const mode = payload.policy.shouldBootstrap ? 'bootstrap' : 'reuse';
-    const refresh = payload.policy.allowRefresh ? 'refresh' : 'no-refresh';
-    this.event('🗺️', `[${label}] Context Policy -> ${payload.phase} ${mode} ${refresh} target=${payload.policy.targetDir}`);
-    log.events.push({ ts: Date.now(), kind: 'context', data: payload });
-    this.publishAudit('task.context', {
+    this.publishAudit('task.attempt', {
       taskId: task.id,
       title: task.title,
-      phase: payload.phase,
-      targetDir: payload.policy.targetDir,
-      hasRootContext: payload.policy.hasRootContext,
-      hasTargetContext: payload.policy.hasTargetContext,
-      shouldBootstrap: payload.policy.shouldBootstrap,
-      allowRefresh: payload.policy.allowRefresh,
+      attempt: n,
+      phase: 'retry',
     });
   }
 
-  taskLLMCall(task: Task, payload: { messages: any[]; response: any; durationMs: number; }) {
+  taskAnalysisPrompt(task: Task) {
+    const label = this.getTaskLabel(task);
+    this.event('🧭', `[${label}] Analyze Task`);
+  }
+
+  taskAnalysisResult(task: Task, analysis: string, ok: boolean) {
+    const log = this.getTaskLog(task);
+    const label = this.getTaskLabel(task);
+    this.event('🧭', `[${label}] Analysis ${ok ? 'complete' : 'fallback'}`);
+    log.events.push({
+      ts: Date.now(),
+      kind: 'analysis',
+      data: { analysis, ok },
+    });
+  }
+
+  taskLLMCall(
+    task: Task,
+    payload: { messages: any[]; response: any; durationMs: number },
+  ) {
     const log = this.getTaskLog(task);
     log.llmCalls++;
     if (this.report) this.report.stats.totalLLMCalls++;
@@ -279,15 +330,23 @@ export class RunLoggerService {
       title: task.title,
       durationMs: payload.durationMs,
       usage: payload.response?.usage,
-      toolCalls: Array.isArray(payload.response?.tool_calls) ? payload.response.tool_calls.length : 0,
+      toolCalls: Array.isArray(payload.response?.tool_calls)
+        ? payload.response.tool_calls.length
+        : 0,
     });
   }
 
-  taskToolCall(task: Task, payload: { name: string; args: any; result: any; durationMs: number; }) {
+  taskToolCall(
+    task: Task,
+    payload: { name: string; args: any; result: any; durationMs: number },
+  ) {
     const log = this.getTaskLog(task);
     const label = this.getTaskLabel(task);
     const argsText = this.formatToolArgs(payload.name, payload.args);
-    this.event('🛠️', `[${label}] LLM Use Tool [${payload.name}]${argsText ? ` ${argsText}` : ''}`);
+    this.event(
+      '🛠️',
+      `[${label}] LLM Use Tool [${payload.name}]${argsText ? ` ${argsText}` : ''}`,
+    );
     log.toolCalls++;
     if (this.report) this.report.stats.totalToolCalls++;
     if (payload.args?.path && this.isWriteTool(payload.name)) {
@@ -312,7 +371,9 @@ export class RunLoggerService {
       case 'read_file':
         return args.path ? `path=${args.path}` : '';
       case 'read_file_range':
-        return args.path ? `path=${args.path} lines=${args.startLine}-${args.endLine}` : '';
+        return args.path
+          ? `path=${args.path} lines=${args.startLine}-${args.endLine}`
+          : '';
       case 'create_file':
         return args.path ? `path=${args.path}` : '';
       case 'replace_in_file':
@@ -332,11 +393,17 @@ export class RunLoggerService {
     }
   }
 
-  taskBuildResult(task: Task, payload: { phase: 'initial' | 'retry'; result: BuildResult; }) {
+  taskBuildResult(
+    task: Task,
+    payload: { phase: 'initial' | 'retry'; result: BuildResult },
+  ) {
     const log = this.getTaskLog(task);
     const label = this.getTaskLabel(task);
     const buildLabel = payload.result.success ? 'SUCCESS' : 'FAIL';
-    this.event('🏗️', `[${label}] Check Build -> ${this.colorizeOutcome(buildLabel, payload.result.success)}`);
+    this.event(
+      '🏗️',
+      `[${label}] Check Build -> ${this.colorizeOutcome(buildLabel, payload.result.success)}`,
+    );
     log.events.push({ ts: Date.now(), kind: 'build', data: payload });
     this.publishAudit('task.build', {
       taskId: task.id,
@@ -369,6 +436,89 @@ export class RunLoggerService {
     log.events.push({ ts: Date.now(), kind: 'blocked', data: task.blocker });
   }
 
+  taskDeferred(task: Task, reason: string) {
+    const log = this.getTaskLog(task);
+    log.endTs = Date.now();
+    log.status = 'DEFERRED';
+    log.events.push({ ts: Date.now(), kind: 'deferred', data: { reason } });
+  }
+
+  taskBlocksPlanned(blocks: Array<{ title: string; tasks: Task[] }>) {
+    this.event(
+      '🧱',
+      `Planned ${blocks.length} task block${blocks.length === 1 ? '' : 's'}`,
+    );
+    blocks.forEach((block, index) => {
+      this.event(
+        '🧱',
+        `Block [${String(index + 1).padStart(2, '0')}] ${block.title} (${block.tasks.length} task${block.tasks.length === 1 ? '' : 's'})`,
+      );
+    });
+  }
+
+  taskBlockStart(index: number, title: string) {
+    this.event(
+      '🧱',
+      `Start block [${String(index).padStart(2, '0')}] ${title}`,
+    );
+  }
+
+  taskBlockStop(index: number, title: string, reason: string) {
+    this.event(
+      '⛔',
+      `Stop after block [${String(index).padStart(2, '0')}] ${title}: ${reason}`,
+      'WARN',
+    );
+  }
+
+  writeDeferredTaskBlocks(
+    blocks: Array<{ title: string; targetDir: string; tasks: Task[] }>,
+    reason: string,
+  ) {
+    if (!this.runDir || !blocks.length) return;
+    const dir = path.join(this.runDir, 'deferred-task-blocks');
+    fs.mkdirSync(dir, { recursive: true });
+    blocks.forEach((block, index) => {
+      const safeTitle =
+        (block.title || 'task-block')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 80) || 'task-block';
+      const filePath = path.join(
+        dir,
+        `[${String(index + 1).padStart(2, '0')}] ${safeTitle}.md`,
+      );
+      this.write(filePath, this.renderDeferredTaskBlock(block, reason));
+    });
+  }
+
+  private renderDeferredTaskBlock(
+    block: { title: string; targetDir: string; tasks: Task[] },
+    reason: string,
+  ): string {
+    const destination =
+      block.targetDir === '.'
+        ? ENV.AI_TODO_FILE
+        : `${block.targetDir}/${ENV.AI_TODO_FILE}`;
+    const lines: string[] = [];
+    lines.push(`# Deferred Task Block: ${block.title}`);
+    lines.push('');
+    lines.push(`Suggested destination: \`${destination}\``);
+    lines.push(`Reason: ${reason}`);
+    lines.push('');
+    lines.push('## AI Tasks');
+    lines.push('');
+    for (const task of block.tasks) {
+      const description = (task.description || '').trim();
+      lines.push(
+        description ? `- ${task.title} | ${description}` : `- ${task.title}`,
+      );
+    }
+    lines.push('');
+    return lines.join('\n');
+  }
+
   taskRetryPrompt(task: Task) {
     const label = this.getTaskLabel(task);
     this.event('🧠', `[${label}] Prompt to Build Issue`);
@@ -377,7 +527,10 @@ export class RunLoggerService {
   llmResult(task: Task, ok: boolean) {
     const label = this.getTaskLabel(task);
     const labelText = ok ? 'COMPLETE' : 'FAIL';
-    this.event('🏁', `[${label}] LLM Result -> ${this.colorizeOutcome(labelText, ok)}`);
+    this.event(
+      '🏁',
+      `[${label}] LLM Result -> ${this.colorizeOutcome(labelText, ok)}`,
+    );
   }
 
   promptToLLM(task: Task) {
@@ -416,7 +569,17 @@ export class RunLoggerService {
     this.flush();
   }
 
-  private publishAudit(type: 'run.event' | 'run.status' | 'task.status' | 'task.attempt' | 'task.context' | 'task.build' | 'task.tool' | 'task.llm', payload: Record<string, any>) {
+  private publishAudit(
+    type:
+      | 'run.event'
+      | 'run.status'
+      | 'task.status'
+      | 'task.attempt'
+      | 'task.build'
+      | 'task.tool'
+      | 'task.llm',
+    payload: Record<string, any>,
+  ) {
     void this.audit.publish(type, payload).catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
       this.timeline('📡', `MQTT audit publish failed [${type}] ${message}`);
@@ -424,10 +587,12 @@ export class RunLoggerService {
   }
 
   private isWriteTool(name: string): boolean {
-    return name === 'save_file'
-      || name === 'create_file'
-      || name === 'replace_in_file'
-      || name === 'insert_in_file';
+    return (
+      name === 'save_file' ||
+      name === 'create_file' ||
+      name === 'replace_in_file' ||
+      name === 'insert_in_file'
+    );
   }
 
   private flush() {
@@ -438,7 +603,9 @@ export class RunLoggerService {
     for (let i = 0; i < this.report.tasks.length; i++) {
       const log = this.report.tasks[i];
       const taskMd = this.buildTaskMarkdown(log, i + 1);
-      const taskPath = this.runDir ? path.join(this.runDir, this.getTaskFileName(log, i + 1)) : undefined;
+      const taskPath = this.runDir
+        ? path.join(this.runDir, this.getTaskFileName(log, i + 1))
+        : undefined;
       this.write(taskPath, taskMd);
     }
   }
@@ -460,24 +627,34 @@ export class RunLoggerService {
   private buildRunSummaryMarkdown(report: RunReport): string {
     const lines: string[] = [];
     const startedAt = new Date(report.meta.startedAt);
-    const endedAt = report.meta.endedAt ? new Date(report.meta.endedAt) : new Date();
+    const endedAt = report.meta.endedAt
+      ? new Date(report.meta.endedAt)
+      : new Date();
     const titleParts = [report.meta.runId, report.meta.commit].filter(Boolean);
     lines.push(`# 🚀 Run ${titleParts.join(' - ')}`.trim());
     //if (report.meta.repoId) lines.push(`Repo: ${report.meta.repoId}`);
     lines.push(`Started: **${RunLogFormatters.formatDateTime(startedAt)}**`);
     lines.push(`Ended: **${RunLogFormatters.formatDateTime(endedAt)}**`);
     lines.push(`Status: **${report.meta.status || 'UNKNOWN'}**`);
-    lines.push(`Total duration: **${RunLogFormatters.formatDuration(endedAt.getTime() - startedAt.getTime())}**`);
+    lines.push(
+      `Total duration: **${RunLogFormatters.formatDuration(endedAt.getTime() - startedAt.getTime())}**`,
+    );
     lines.push(`LLM model: **${ENV.LLM_MODEL}**`);
     lines.push('');
 
     lines.push('### ✅ Tasks');
-    lines.push('| Task | Status | Duration | Attempts | Fix Attempts | LLM Calls | Tool Calls | Files Touched |');
+    lines.push(
+      '| Task | Status | Duration | Attempts | Fix Attempts | LLM Calls | Tool Calls | Files Touched |',
+    );
     lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
     for (const log of report.tasks) {
-      const duration = RunLogFormatters.formatDuration(this.getTaskDuration(log));
+      const duration = RunLogFormatters.formatDuration(
+        this.getTaskDuration(log),
+      );
       const files = log.filesTouched.join(', ');
-      lines.push(`| ${RunLogFormatters.escapePipes(log.task.title)} | **${log.status || 'UNKNOWN'}** | ${duration} | ${log.attempts} | ${log.fixAttempts} | ${log.llmCalls} | ${log.toolCalls} | ${RunLogFormatters.escapePipes(files || '-')} |`);
+      lines.push(
+        `| ${RunLogFormatters.escapePipes(log.task.title)} | **${log.status || 'UNKNOWN'}** | ${duration} | ${log.attempts} | ${log.fixAttempts} | ${log.llmCalls} | ${log.toolCalls} | ${RunLogFormatters.escapePipes(files || '-')} |`,
+      );
     }
 
     const touchedFiles = this.getAllTouchedFiles(report);
@@ -492,7 +669,9 @@ export class RunLoggerService {
     if (report.installResult) {
       lines.push('');
       lines.push('## 📦 Install');
-      lines.push(`Status: ${report.installResult.success ? '✅ **Success**' : '❌ **Failed**'}`);
+      lines.push(
+        `Status: ${report.installResult.success ? '✅ **Success**' : '❌ **Failed**'}`,
+      );
       if (report.installResult.stdout) {
         lines.push('');
         lines.push('```');
@@ -514,7 +693,9 @@ export class RunLoggerService {
         const time = formatTimeColonDot(new Date(ev.ts));
         const emoji = ev.emoji || this.emojiForLevel(ev.level);
         const cleanMessage = this.stripAnsi(ev.message);
-        lines.push(`- ${time} ${emoji} ${RunLogFormatters.escapePipes(cleanMessage)}`);
+        lines.push(
+          `- ${time} ${emoji} ${RunLogFormatters.escapePipes(cleanMessage)}`,
+        );
       }
     }
 
@@ -553,49 +734,47 @@ export class RunLoggerService {
       lines.push('');
     }
 
+    const analysisEvents = log.events.filter((e) => e.kind === 'analysis');
+    if (analysisEvents.length) {
+      lines.push('## 🧭 Analysis');
+      lines.push('');
+      const latest = analysisEvents[analysisEvents.length - 1];
+      lines.push(latest.data?.analysis || '_No analysis captured_');
+      lines.push('');
+    }
+
     lines.push('## Files Touched');
     lines.push('');
     const filesTouched = log.filesTouched;
     if (!filesTouched.length) {
       lines.push('_No files touched_');
     } else {
-      lines.push(filesTouched.map(f => `- ${f}`).join('\n'));
+      lines.push(filesTouched.map((f) => `- ${f}`).join('\n'));
     }
     lines.push('');
 
     lines.push('## 📊 LLM Stats');
     lines.push('');
-    const llmEvents = log.events.filter(e => e.kind === 'llm');
+    const llmEvents = log.events.filter((e) => e.kind === 'llm');
     if (!llmEvents.length) {
       lines.push('_No LLM calls_');
       lines.push('');
     } else {
       const last = llmEvents[llmEvents.length - 1];
-      const totalTokens = llmEvents.reduce((sum, e) => sum + (e.data?.response?.usage?.total_tokens || 0), 0);
+      const totalTokens = llmEvents.reduce(
+        (sum, e) => sum + (e.data?.response?.usage?.total_tokens || 0),
+        0,
+      );
       lines.push(`- Total calls: ${llmEvents.length}`);
-      lines.push(`- Total duration: ${RunLogFormatters.formatDuration(llmEvents.reduce((s, e) => s + (e.data?.durationMs || 0), 0))}`);
+      lines.push(
+        `- Total duration: ${RunLogFormatters.formatDuration(llmEvents.reduce((s, e) => s + (e.data?.durationMs || 0), 0))}`,
+      );
       if (totalTokens) lines.push(`- Total tokens: ${totalTokens}`);
       lines.push('');
-    lines.push('## 🧠 LLM Conversation');
-    lines.push('');
+      lines.push('## 🧠 LLM Conversation');
+      lines.push('');
       lines.push(...this.renderConversation(last.data?.messages || []));
       lines.push('');
-    }
-
-    const contextEvents = log.events.filter(e => e.kind === 'context');
-    if (contextEvents.length) {
-      lines.push('## 🗺️ Context Policy');
-      lines.push('');
-      for (const ev of contextEvents) {
-        const data = ev.data || {};
-        lines.push(`- Phase: ${data.phase || '-'}`);
-        lines.push(`- Target dir: ${data.policy?.targetDir || '-'}`);
-        lines.push(`- Root context: ${data.policy?.hasRootContext ? 'yes' : 'no'}`);
-        lines.push(`- Local context: ${data.policy?.hasTargetContext ? 'yes' : 'no'}`);
-        lines.push(`- Bootstrap: ${data.policy?.shouldBootstrap ? 'yes' : 'no'}`);
-        lines.push(`- Refresh allowed: ${data.policy?.allowRefresh ? 'yes' : 'no'}`);
-        lines.push('');
-      }
     }
 
     lines.push('## 🏁 Outcome');
@@ -661,20 +840,33 @@ export class RunLoggerService {
   }
 
   private renderSystemMessage(msg: any): string[] {
-    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content || '', null, 2);
+    const content =
+      typeof msg.content === 'string'
+        ? msg.content
+        : JSON.stringify(msg.content || '', null, 2);
     return [content];
   }
 
   private renderUserMessage(msg: any): string[] {
-    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content || '', null, 2);
+    const content =
+      typeof msg.content === 'string'
+        ? msg.content
+        : JSON.stringify(msg.content || '', null, 2);
     return [content];
   }
 
-  private renderAssistantMessage(msg: any, toolOutputs: Map<string, any>): string[] {
+  private renderAssistantMessage(
+    msg: any,
+    toolOutputs: Map<string, any>,
+  ): string[] {
     const lines: string[] = [];
     if (msg.content) {
       lines.push('***');
-      lines.push(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2));
+      lines.push(
+        typeof msg.content === 'string'
+          ? msg.content
+          : JSON.stringify(msg.content, null, 2),
+      );
       lines.push('***');
       lines.push('');
     }
@@ -686,7 +878,10 @@ export class RunLoggerService {
         lines.push(`### ${this.functionEmoji(fnName)} ${fnName}`);
         lines.push('');
         lines.push(`- 🗂️ Path: **${path}**`);
-        if ((fnName === 'save_file' || fnName === 'create_file') && typeof args?.content === 'string') {
+        if (
+          (fnName === 'save_file' || fnName === 'create_file') &&
+          typeof args?.content === 'string'
+        ) {
           lines.push('');
           lines.push(...this.renderSavedFileBlock(path, args.content));
         }
@@ -713,7 +908,7 @@ export class RunLoggerService {
       if (msg.name === 'read_file' || msg.name === 'read_file_range') {
         lines.push('[read_file output omitted]');
       } else {
-        lines.push(['```json',this.safeJson(content),'```'].join('\n'));
+        lines.push(['```json', this.safeJson(content), '```'].join('\n'));
       }
     }
     return lines.length ? lines : ['_Empty tool message_'];
@@ -728,24 +923,28 @@ export class RunLoggerService {
       return ['### ❓ Output', '```\n_no output captured_\n```'];
     }
     const parsed = this.safeJsonParse(toolMsg.content);
-    const success = typeof parsed?.success === 'boolean' ? parsed.success : undefined;
+    const success =
+      typeof parsed?.success === 'boolean' ? parsed.success : undefined;
     const emoji = success === false ? '❌' : '✅';
-    const output = parsed?.output !== undefined ? parsed.output : toolMsg.content;
+    const output =
+      parsed?.output !== undefined ? parsed.output : toolMsg.content;
     if (toolName === 'read_file' || toolName === 'read_file_range') {
-      return [`### ${emoji} Output`, '```', '[read_file output omitted]', '```'];
+      return [
+        `### ${emoji} Output`,
+        '```',
+        '[read_file output omitted]',
+        '```',
+      ];
     }
-    const outText = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+    const outText =
+      typeof output === 'string' ? output : JSON.stringify(output, null, 2);
     return [`### ${emoji} Output`, '```', outText, '```'];
   }
 
   private renderSavedFileBlock(filePath: string, content: string): string[] {
     const ext = path.extname(filePath || '').toLowerCase();
     const language = this.getLanguageForExtension(ext);
-    return [
-      `\`\`\`${language}`,
-      content,
-      '```'
-    ];
+    return [`\`\`\`${language}`, content, '```'];
   }
 
   private getLanguageForExtension(ext: string): string {
@@ -777,7 +976,7 @@ export class RunLoggerService {
       '.md': 'markdown',
       '.txt': 'text',
       '.toml': 'toml',
-      '.ini': 'ini'
+      '.ini': 'ini',
     };
     return map[ext] || '';
   }
@@ -824,5 +1023,4 @@ export class RunLoggerService {
       return { raw: value };
     }
   }
-
 }

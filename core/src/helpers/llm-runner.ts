@@ -1,10 +1,21 @@
 import { Task } from '../types';
 
-type LLMClient = { chat(messages: any[], profile?: any, tools?: any[]): Promise<any> };
-type ToolRegistry = { getTools(): any[]; execute(call: { name: string; arguments: Record<string, any> }): Promise<any> };
+type LLMClient = {
+  chat(messages: any[], profile?: any, tools?: any[]): Promise<any>;
+};
+type ToolRegistry = {
+  getTools(): any[];
+  execute(call: { name: string; arguments: Record<string, any> }): Promise<any>;
+};
 type Logger = {
-  taskLLMCall(task: Task, payload: { messages: any[]; response: any; durationMs: number }): void;
-  taskToolCall(task: Task, payload: { name: string; args: any; result: any; durationMs: number }): void;
+  taskLLMCall(
+    task: Task,
+    payload: { messages: any[]; response: any; durationMs: number },
+  ): void;
+  taskToolCall(
+    task: Task,
+    payload: { name: string; args: any; result: any; durationMs: number },
+  ): void;
   taskRetryPrompt?(task: Task): void;
   warn(msg: string): void;
 };
@@ -22,14 +33,14 @@ export class LLMRunner {
       llmProfileResolver: LLMProfileResolver;
       repoContext: RepoContextProvider;
       maxToolCalls: number;
-    }
+    },
   ): Promise<boolean> {
     const profile = deps.llmProfileResolver.resolve(deps.repoContext.get());
     const tools = deps.tools.getTools();
     let toolCallsCount = 0;
 
     while (toolCallsCount <= deps.maxToolCalls) {
-      const promptSnapshot = messages.map(m => ({ ...m }));
+      const promptSnapshot = messages.map((m) => ({ ...m }));
       const llmStart = Date.now();
       const response = await deps.llm.chat(messages, profile, tools);
       const llmDuration = Date.now() - llmStart;
@@ -48,13 +59,13 @@ export class LLMRunner {
           tool_calls: message.tool_calls,
           usage: response?.usage,
         },
-        durationMs: llmDuration
+        durationMs: llmDuration,
       });
 
       messages.push({
         role: message.role || 'assistant',
         content: message.content || null,
-        tool_calls: message.tool_calls || undefined
+        tool_calls: message.tool_calls || undefined,
       });
 
       const toolCalls = message.tool_calls || [];
@@ -78,7 +89,9 @@ export class LLMRunner {
 
         let args: Record<string, any> = {};
         try {
-          args = call.function?.arguments ? JSON.parse(call.function.arguments) : {};
+          args = call.function?.arguments
+            ? JSON.parse(call.function.arguments)
+            : {};
         } catch {
           args = {};
         }
@@ -86,12 +99,17 @@ export class LLMRunner {
         const toolStart = Date.now();
         const result = await deps.tools.execute({ name, arguments: args });
         const toolDuration = Date.now() - toolStart;
-        deps.logger.taskToolCall(task, { name, args, result, durationMs: toolDuration });
+        deps.logger.taskToolCall(task, {
+          name,
+          args,
+          result,
+          durationMs: toolDuration,
+        });
 
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: JSON.stringify(result)
+          content: JSON.stringify(result),
         });
       }
     }

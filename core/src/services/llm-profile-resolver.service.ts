@@ -4,7 +4,6 @@ import { LLMProfileHelper } from '../helpers/llm-profile';
 
 @Injectable()
 export class LLMProfileResolverService {
-
   resolve(ctx: RepoContext): LLMProfile {
     return LLMProfileHelper.resolve(ctx);
   }

@@ -97,8 +97,8 @@ PromptTemplateService
 PromptService
 
 ### Responsabilità
-- Costruisce i messaggi finali per esecuzione task e retry
-- Integra template, istruzioni AI e contesto locale
+- Costruisce i messaggi finali per analisi task, esecuzione task e retry
+- Integra template e istruzioni AI
 
 ### Input
 - Task
@@ -110,7 +110,6 @@ PromptService
 ### Dipendenze
 - PromptTemplateService
 - AIInstructionsService
-- ContextFileService
 
 ### Non deve fare
 - Non deve chiamare LLM

@@ -14,7 +14,6 @@ import { LLMClientService } from './services/llm-client.service';
 import { LLMProfileResolverService } from './services/llm-profile-resolver.service';
 import { PromptTemplateService } from './services/prompt-template.service';
 import { PromptService } from './services/prompt.service';
-import { ContextFileService } from './services/context-file.service';
 import { BuildService } from './services/build.service';
 import { RunLoggerService } from './services/run-logger.service';
 import { AIInstructionsService } from './services/ai-instructions.service';
@@ -42,7 +41,6 @@ import { AuditPublisherService } from './services/audit-publisher.service';
     LLMProfileResolverService,
     PromptTemplateService,
     PromptService,
-    ContextFileService,
     BuildService,
     RunLoggerService,
     AuditPublisherService,

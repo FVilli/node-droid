@@ -9,9 +9,16 @@ export class MergeRequestService {
     private readonly logger: RunLoggerService,
   ) {}
 
-  async create(baseBranch: string, branch: string, runId: string, token?: string): Promise<string> {
+  async create(
+    baseBranch: string,
+    branch: string,
+    runId: string,
+    token?: string,
+  ): Promise<string> {
     const title = `AI Automation Run ${runId}`;
     const body = this.logger.getPrSummary();
-    return (await this.git.createPR(baseBranch, branch, title, body, token)).trim();
+    return (
+      await this.git.createPR(baseBranch, branch, title, body, token)
+    ).trim();
   }
 }

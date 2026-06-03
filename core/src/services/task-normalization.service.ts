@@ -46,10 +46,17 @@ export class TaskNormalizationService {
 
   private normalizeRelatedFiles(relatedFiles?: string[]): string[] | undefined {
     if (!relatedFiles?.length) return relatedFiles;
-    return Array.from(new Set(relatedFiles.map(file => file.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    return Array.from(
+      new Set(relatedFiles.map((file) => file.trim()).filter(Boolean)),
+    ).sort((a, b) => a.localeCompare(b));
   }
 
-  private buildId(task: Task, title: string, description: string, source: string): string {
+  private buildId(
+    task: Task,
+    title: string,
+    description: string,
+    source: string,
+  ): string {
     const payload = [
       source,
       task.file?.trim() || '',

@@ -7,7 +7,6 @@ import { FileSystemPaths } from '../helpers/filesystem-paths';
 
 @Injectable()
 export class FileSystemToolService {
-
   constructor(private readonly repoContext: RepoContextService) {}
 
   private resolve(p: string) {
@@ -20,7 +19,10 @@ export class FileSystemToolService {
     try {
       return { success: true, output: fs.readdirSync(full) };
     } catch (e) {
-      return { success: false, error: `Failed to list directory: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to list directory: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -33,7 +35,10 @@ export class FileSystemToolService {
     try {
       return { success: true, output: fs.readFileSync(full, 'utf-8') };
     } catch (e) {
-      return { success: false, error: `Failed to read file: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to read file: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -41,7 +46,12 @@ export class FileSystemToolService {
     const full = this.resolve(p);
     const start = Number(startLine);
     const end = Number(endLine);
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 1 ||
+      end < start
+    ) {
       return { success: false, error: 'Invalid startLine/endLine' };
     }
     try {
@@ -55,10 +65,13 @@ export class FileSystemToolService {
           startLine: start,
           endLine: Math.min(end, lines.length),
           content: selected.join('\n'),
-        }
+        },
       };
     } catch (e) {
-      return { success: false, error: `Failed to read file range: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to read file range: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -68,7 +81,10 @@ export class FileSystemToolService {
       fs.writeFileSync(full, content);
       return { success: true };
     } catch (e) {
-      return { success: false, error: `Failed to save file: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to save file: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -82,7 +98,10 @@ export class FileSystemToolService {
       fs.writeFileSync(full, content ?? '', 'utf-8');
       return { success: true };
     } catch (e) {
-      return { success: false, error: `Failed to create file: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to create file: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -106,23 +125,36 @@ export class FileSystemToolService {
       const replacements = all ? original.split(search).length - 1 : 1;
       return { success: true, output: { replacements } };
     } catch (e) {
-      return { success: false, error: `Failed to replace in file: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to replace in file: ${(e as Error).message}`,
+      };
     }
   }
 
-  search({ query, path: p = '.', caseSensitive = false, maxResults = 50 }: any): ToolResult {
+  search({
+    query,
+    path: p = '.',
+    caseSensitive = false,
+    maxResults = 50,
+  }: any): ToolResult {
     if (!query || typeof query !== 'string') {
       return { success: false, error: 'Missing query' };
     }
     const base = this.resolve(p);
     const needle = caseSensitive ? query : query.toLowerCase();
     const results: Array<{ path: string; line: number; preview: string }> = [];
-    const max = Number.isFinite(maxResults) ? Math.max(1, Math.floor(maxResults)) : 50;
+    const max = Number.isFinite(maxResults)
+      ? Math.max(1, Math.floor(maxResults))
+      : 50;
 
     try {
       this.walkFiles(base, (filePath) => {
         if (results.length >= max) return false;
-        const relPath = path.relative(this.repoContext.get().codePath, filePath);
+        const relPath = path.relative(
+          this.repoContext.get().codePath,
+          filePath,
+        );
         let content = '';
         try {
           const stat = fs.statSync(filePath);
@@ -135,7 +167,11 @@ export class FileSystemToolService {
         for (let i = 0; i < lines.length; i++) {
           const hay = caseSensitive ? lines[i] : lines[i].toLowerCase();
           if (hay.includes(needle)) {
-            results.push({ path: relPath, line: i + 1, preview: lines[i].trim() });
+            results.push({
+              path: relPath,
+              line: i + 1,
+              preview: lines[i].trim(),
+            });
             if (results.length >= max) return false;
           }
         }
@@ -143,18 +179,28 @@ export class FileSystemToolService {
       });
       return { success: true, output: results };
     } catch (e) {
-      return { success: false, error: `Failed to search files: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to search files: ${(e as Error).message}`,
+      };
     }
   }
 
-  searchFile({ query, path: p = '.', caseSensitive = false, maxResults = 50 }: any): ToolResult {
+  searchFile({
+    query,
+    path: p = '.',
+    caseSensitive = false,
+    maxResults = 50,
+  }: any): ToolResult {
     if (!query || typeof query !== 'string') {
       return { success: false, error: 'Missing query' };
     }
     const base = this.resolve(p);
     const needle = caseSensitive ? query : query.toLowerCase();
     const results: string[] = [];
-    const max = Number.isFinite(maxResults) ? Math.max(1, Math.floor(maxResults)) : 50;
+    const max = Number.isFinite(maxResults)
+      ? Math.max(1, Math.floor(maxResults))
+      : 50;
 
     try {
       this.walkFiles(base, (filePath) => {
@@ -162,14 +208,19 @@ export class FileSystemToolService {
         const name = path.basename(filePath);
         const hay = caseSensitive ? name : name.toLowerCase();
         if (hay.includes(needle)) {
-          results.push(path.relative(this.repoContext.get().codePath, filePath));
+          results.push(
+            path.relative(this.repoContext.get().codePath, filePath),
+          );
           if (results.length >= max) return false;
         }
         return true;
       });
       return { success: true, output: results };
     } catch (e) {
-      return { success: false, error: `Failed to search file names: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to search file names: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -178,8 +229,14 @@ export class FileSystemToolService {
     if (typeof content !== 'string') {
       return { success: false, error: 'Missing content' };
     }
-    if ((typeof after === 'string' && typeof before === 'string') || (typeof after !== 'string' && typeof before !== 'string')) {
-      return { success: false, error: 'Provide exactly one of after or before' };
+    if (
+      (typeof after === 'string' && typeof before === 'string') ||
+      (typeof after !== 'string' && typeof before !== 'string')
+    ) {
+      return {
+        success: false,
+        error: 'Provide exactly one of after or before',
+      };
     }
     const anchor = typeof after === 'string' ? after : before;
     if (!anchor) {
@@ -191,12 +248,16 @@ export class FileSystemToolService {
       if (index < 0) {
         return { success: false, error: 'Anchor text not found' };
       }
-      const insertAt = typeof after === 'string' ? index + anchor.length : index;
+      const insertAt =
+        typeof after === 'string' ? index + anchor.length : index;
       const updated = `${original.slice(0, insertAt)}${content}${original.slice(insertAt)}`;
       fs.writeFileSync(full, updated, 'utf-8');
       return { success: true };
     } catch (e) {
-      return { success: false, error: `Failed to insert in file: ${(e as Error).message}` };
+      return {
+        success: false,
+        error: `Failed to insert in file: ${(e as Error).message}`,
+      };
     }
   }
 
@@ -225,5 +286,4 @@ export class FileSystemToolService {
       }
     }
   }
-
 }

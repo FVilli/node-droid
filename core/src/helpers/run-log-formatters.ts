@@ -17,19 +17,37 @@ export class RunLogFormatters {
         lines.push(`- [${time}] Fix attempt ${ev.data?.n}`);
         break;
       case 'llm':
-        lines.push(`- [${time}] LLM call (${this.formatDuration(ev.data?.durationMs || 0)})`);
+        lines.push(
+          `- [${time}] LLM call (${this.formatDuration(ev.data?.durationMs || 0)})`,
+        );
         lines.push('```json');
-        lines.push(JSON.stringify({ messages: ev.data?.messages, response: ev.data?.response }, null, 2));
+        lines.push(
+          JSON.stringify(
+            { messages: ev.data?.messages, response: ev.data?.response },
+            null,
+            2,
+          ),
+        );
         lines.push('```');
         break;
       case 'tool':
-        lines.push(`- [${time}] Tool ${ev.data?.name} (${this.formatDuration(ev.data?.durationMs || 0)})`);
+        lines.push(
+          `- [${time}] Tool ${ev.data?.name} (${this.formatDuration(ev.data?.durationMs || 0)})`,
+        );
         lines.push('```json');
-        lines.push(JSON.stringify({ args: ev.data?.args, result: ev.data?.result }, null, 2));
+        lines.push(
+          JSON.stringify(
+            { args: ev.data?.args, result: ev.data?.result },
+            null,
+            2,
+          ),
+        );
         lines.push('```');
         break;
       case 'build':
-        lines.push(`- [${time}] Build ${ev.data?.phase} (${ev.data?.result?.success ? 'success' : 'failed'}) (${this.formatDuration(ev.data?.result?.durationMs || 0)})`);
+        lines.push(
+          `- [${time}] Build ${ev.data?.phase} (${ev.data?.result?.success ? 'success' : 'failed'}) (${this.formatDuration(ev.data?.result?.durationMs || 0)})`,
+        );
         if (ev.data?.result?.stdout) {
           lines.push('```');
           lines.push(ev.data.result.stdout);

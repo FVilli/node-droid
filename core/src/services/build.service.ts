@@ -10,7 +10,6 @@ import { RunLoggerService } from './run-logger.service';
 
 @Injectable()
 export class BuildService {
-
   constructor(
     private readonly repoContext: RepoContextService,
     private readonly logger: RunLoggerService,
@@ -18,11 +17,21 @@ export class BuildService {
 
   private _run(cmd: string) {
     const { codePath } = this.repoContext.get();
-    return execSync(cmd, { cwd: codePath, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' });
+    return execSync(cmd, {
+      cwd: codePath,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      shell: '/bin/bash',
+    });
   }
 
   private runInDir(cmd: string, cwd: string) {
-    return execSync(cmd, { cwd, stdio: 'pipe', encoding: 'utf-8', shell: '/bin/bash' });
+    return execSync(cmd, {
+      cwd,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      shell: '/bin/bash',
+    });
   }
 
   npmInstall() {
@@ -46,7 +55,10 @@ export class BuildService {
         this.logger.event('✅', `Install [${dir}] OK`);
       } catch (err: any) {
         this.logger.event('⚠️', `Install [${dir}] FAIL`, 'WARN');
-        return BuildHelpers.buildFailure(start, this.wrapCommandError(err, dir, installCmd));
+        return BuildHelpers.buildFailure(
+          start,
+          this.wrapCommandError(err, dir, installCmd),
+        );
       }
 
       try {
@@ -57,7 +69,10 @@ export class BuildService {
         this.logger.event('✅', `Build [${dir}] OK`);
       } catch (err: any) {
         this.logger.event('⚠️', `Build [${dir}] FAIL`, 'WARN');
-        return BuildHelpers.buildFailure(start, this.wrapCommandError(err, dir, 'npm run build'));
+        return BuildHelpers.buildFailure(
+          start,
+          this.wrapCommandError(err, dir, 'npm run build'),
+        );
       }
     }
     return BuildHelpers.buildSuccess(start, combinedStdout);
@@ -90,8 +105,7 @@ export class BuildService {
     return {
       status: err?.status || 1,
       stdout: prefix + (err?.stdout?.toString() || ''),
-      stderr: prefix + (err?.stderr?.toString() || '')
+      stderr: prefix + (err?.stderr?.toString() || ''),
     };
   }
-
 }
