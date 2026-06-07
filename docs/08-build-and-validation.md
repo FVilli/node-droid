@@ -8,12 +8,11 @@
 BuildService
 
 ### Responsabilità
-- Esegue il comando di build configurato
+- Esegue lo script `build` dei package rilevanti, quando presente
+- Esegue install solo quando `package.json` e' stato toccato e lo stesso package ha `scripts.build`
 - Normalizza output
 - Restituisce successo/fallimento con durata, stdout, stderr ed exit code
-- Esegue install/build per package quando il task ha toccato file dentro package rilevabili da `package.json`
-- Usa `npm run build` per i package rilevati
-- Usa il comando `install` del package se presente, altrimenti `npm install`
+- Salta il gate quando nessun `package.json` rilevante contiene `scripts.build`
 
 ### Input
 - RepoContext
@@ -38,11 +37,16 @@ BuildService
 - Non deve applicare patch
 - Non deve orchestrare
 
-### Stato attuale
+### Semantica
 
-Il servizio non legge ancora `.ai/build-instructions.yml`. La validazione attuale segue due strade:
+La validazione cerca il `package.json` piu' vicino ai file di codice e ai
+`package.json` toccati dal task.
+Per ogni package rilevante:
 
-1. build globale con `ENV.BUILD_CMD`
-2. install/build dei package che contengono file modificati dal task
+1. se non esiste `scripts.build`, registra uno skip senza eseguire install;
+2. se il file toccato e' `package.json`, esegue `npm run install` quando esiste `scripts.install`, altrimenti `npm i`;
+3. se esiste `scripts.build`, esegue `npm run build`;
+4. se nessun package rilevante ha uno script `build`, il gate e' considerato superato.
 
-Se viene introdotta la build dichiarativa descritta nel README, questo documento e `BuildService` devono essere aggiornati insieme.
+Il runtime non usa campi di build nel `repo.yml`; lo script `build` del package
+e' il contratto di validazione.

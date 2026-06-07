@@ -3,7 +3,7 @@ import { version, name } from '../package.json';
 import * as path from 'path';
 
 dotenv.config();
-const revision = 8;
+const revision = 9;
 
 export abstract class ENV {
   static readonly VERSION = `${version}.${revision}`;
@@ -24,8 +24,6 @@ export abstract class ENV {
     process.env.LLM_MAX_TOKENS || '262144',
     10,
   );
-  static readonly INSTALL_COMMAND = process.env.INSTALL_COMMAND || 'npm i';
-  static readonly BUILD_COMMAND = process.env.BUILD_COMMAND || 'npm run build';
   static readonly BUILD_TIMEOUT_SECONDS = parseInt(
     process.env.BUILD_TIMEOUT_SECONDS || '300',
     10,
@@ -52,8 +50,6 @@ export abstract class ENV {
   static readonly NO_REMOTE_SIDE_EFFECTS = ENV.DRY_RUN; // skip push, MR
   static readonly NO_LLM = ENV.DRY_RUN; // skip LLM
   // --- NODE ---
-  static readonly BUILD_CMD = process.env.BUILD_CMD || 'npm run build';
-  static readonly INSTALL_CMD = process.env.INSTALL_CMD || 'npm i';
   static readonly REPO_CODE_FOLDER = process.env.REPO_CODE_FOLDER || 'code';
   static readonly REPO_SSH_FOLDER = process.env.REPO_SSH_FOLDER || '.ssh';
   static readonly REPO_AI_FOLDER = process.env.REPO_AI_FOLDER || '.ai';

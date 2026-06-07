@@ -294,18 +294,31 @@ export class TaskExecutorService {
 
   private async buildForTask(task: Task): Promise<BuildResult> {
     const packageDirs = this.getPackageDirsForTask(task);
+    const installPackageDirs = this.getPackageDirsWithTouchedPackageJson(task);
     this.logger.setTaskProjects(task, this.getProjectsForDirs(packageDirs));
     if (!packageDirs.length) return this.scripts.build();
-    return this.scripts.installAndBuildPackages(packageDirs);
+    return this.scripts.buildPackageDirs(packageDirs, installPackageDirs);
   }
 
   private getPackageDirsForTask(task: Task): string[] {
     const touched = this.logger.getTaskFilesTouched(task);
-    const codeFiles = touched.filter((f) => this.isCodeFile(f));
-    if (!codeFiles.length) return [];
+    const relevantFiles = touched.filter((f) => this.isBuildRelevantFile(f));
+    if (!relevantFiles.length) return [];
     const root = this.repoContext.get().codePath;
     const dirs = new Set<string>();
-    for (const file of codeFiles) {
+    for (const file of relevantFiles) {
+      const pkgDir = this.findNearestPackageDir(root, file);
+      if (pkgDir) dirs.add(pkgDir);
+    }
+    return Array.from(dirs);
+  }
+
+  private getPackageDirsWithTouchedPackageJson(task: Task): string[] {
+    const touched = this.logger.getTaskFilesTouched(task);
+    const root = this.repoContext.get().codePath;
+    const dirs = new Set<string>();
+    for (const file of touched) {
+      if (path.basename(file) !== 'package.json') continue;
       const pkgDir = this.findNearestPackageDir(root, file);
       if (pkgDir) dirs.add(pkgDir);
     }
@@ -351,6 +364,12 @@ export class TaskExecutorService {
       '.scss',
     ]);
     return codeExts.has(ext);
+  }
+
+  private isBuildRelevantFile(filePath: string): boolean {
+    return (
+      this.isCodeFile(filePath) || path.basename(filePath) === 'package.json'
+    );
   }
 
   private getProjectsForDirs(

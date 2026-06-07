@@ -12,7 +12,6 @@ Campi principali:
 
 - `remote`: remote Git.
 - `baseBranch`: branch monitorato.
-- `buildCommand`: comando build dichiarato dal repo.
 - `llm`: override profilo LLM.
 - `agent`: policy task/tool.
 - `triggers`: configurazione trigger.
@@ -43,7 +42,6 @@ Contesto risolto del repo attivo:
 - `sshPath`
 - `remote`
 - `baseBranch`
-- `buildCommand`
 - `llmProfile`
 - `agentPolicy`
 

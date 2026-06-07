@@ -137,6 +137,6 @@ Problemi comuni:
 - Nessun repo trovato: controllare `WORKSPACE_FOLDER` e presenza di `repo.yml`.
 - Nessuna run: controllare commit con `[ai]` e file modificati nel delta remoto.
 - Nessun task estratto: controllare marker `[ai]` nei `.ts` o `ai-tasks.md`.
-- Build fallita: controllare `ENV.BUILD_CMD`, package rilevati e output in `.ai/`.
+- Build fallita: controllare lo script `build` nei package rilevati e output in `.ai/`.
 - PR fallita: controllare `gh`, token e remote GitHub.
 - Audit assente: controllare `MQTT_AUDIT_ENABLED` e URL broker.

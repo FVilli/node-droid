@@ -54,10 +54,10 @@ Gli override per repo sono risolti tramite `repo.yml`.
 
 ### Build
 
-- `BUILD_CMD`: comando build globale, default `npm run build`.
-- `INSTALL_CMD`: comando install globale, default `npm i`.
-- `BUILD_COMMAND` / `INSTALL_COMMAND`: presenti come default storici; verificare l'uso prima di aggiungere nuova logica.
 - `BUILD_TIMEOUT_SECONDS`: configurato, ma la build corrente usa `execSync` senza timeout esplicito.
+- Il gate cerca `scripts.build` nei `package.json` rilevanti ed esegue `npm run build`.
+- Se `package.json` e' stato toccato e lo stesso package ha `scripts.build`, esegue `scripts.install` con `npm run install` o altrimenti `npm i`.
+- Se lo script `build` non esiste, il gate viene saltato e lo skip viene loggato.
 
 ### Dry Run
 
@@ -91,8 +91,6 @@ Campi principali:
 remote: git@github.com:org/repo.git
 baseBranch: main
 
-buildCommand: npm run build
-
 llm:
   baseUrl: http://localhost:8000/v1
   apiKey: dummy
@@ -118,7 +116,7 @@ Stato attuale:
 - `agent.maxTaskRetries` e `agent.maxToolCallsPerTask` sono usati dal task executor.
 - `agent.stopOnFailure` e `triggers.commitPrefix` sono presenti nel tipo, ma il codice usa ancora `ENV.AI_COMMIT_TAG`.
 - `token` viene passato alla creazione PR.
-- `buildCommand` e' conservato nel `RepoContext`, ma la build corrente usa `ENV.BUILD_CMD`.
+- La build non e' configurabile da `repo.yml`: usa lo script standard `build` dei package rilevanti.
 
 Quando si aggiunge un nuovo campo in `repo.yml`, aggiornare insieme:
 

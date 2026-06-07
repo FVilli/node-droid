@@ -17,7 +17,6 @@ export class RepoContextBuilder {
       sshPath,
       remote: descriptor.config.remote,
       baseBranch: descriptor.config.baseBranch,
-      buildCommand: descriptor.config.buildCommand || ENV.BUILD_COMMAND,
       llmProfile,
       agentPolicy: descriptor.config.agent || {},
     };

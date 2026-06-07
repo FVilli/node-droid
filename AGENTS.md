@@ -97,16 +97,17 @@ Runtime environment is centralized in `core/src/env.ts`. Key defaults include:
 
 Repo-specific runtime configuration is provided through workspace `repo.yml` files, as documented in `README.md`.
 
-## Build Instruction Semantics
+## Build Gate Semantics
 
-node-droid validates target repositories through `.ai/build-instructions.yml` inside the monitored repo, not by guessing project structure.
+node-droid validates target repositories with the standard package `build` script.
 
-Keep this behavior deterministic:
+Keep this behavior simple and deterministic:
 
-- Do not infer build units from folders.
-- Treat `.ai/build-instructions.yml` as the source of truth.
-- Preserve explicit unit paths, dependencies, install commands, and build commands.
-- Fail clearly on missing dependencies, graph cycles, or invalid build configuration.
+- Look for the relevant `package.json` files for touched code.
+- Run `npm run build` only when `scripts.build` exists.
+- Run install only before that build when `package.json` was touched: prefer `npm run install` when `scripts.install` exists, otherwise run `npm i`.
+- If no relevant package exposes `scripts.build`, skip the build gate and log the skip clearly.
+- Do not add repo-level build configuration; the package `build` script is the runtime contract.
 
 ## Generated and Local Files
 

@@ -2,7 +2,31 @@
 
 **Assistente AI autonomo per repository Git e monorepo Node.js**
 
-node-droid e' un worker headless che monitora repository Git configurati, rileva commit trigger, estrae task da codice o markdown, li esegue con un LLM compatibile OpenAI e tool locali, valida con build dichiarative, scrive log di audit e apre una pull request.
+node-droid e' un worker headless che monitora repository Git configurati, rileva commit trigger, estrae task da codice o markdown, li esegue con un LLM compatibile OpenAI e tool locali, valida con i normali script di package, scrive log di audit e apre una pull request.
+
+## A cosa serve
+
+node-droid non e' pensato come assistente interattivo da usare minuto per minuto mentre si scrive codice. Per quel tipo di lavoro e' meglio un editor agentico, una chat di sviluppo o un copilota integrato nell'IDE.
+
+node-droid e' progettato per lo **sviluppo agentico in background**: lavori che si descrivono con relativa facilita', ma che poi esplodono in molti passaggi tecnici, file, controlli e revisioni. Invece di tenere una sessione interattiva aperta, lo sviluppatore consegna al repository un'intenzione esplicita e lascia che il worker la trasformi in una PR osservabile.
+
+Esempi adatti:
+
+- migrazioni progressive tra librerie, framework o pattern architetturali;
+- refactoring grandi ma meccanici, dove la direzione e' chiara e l'esecuzione e' lunga;
+- riallineamento di API, naming, struttura cartelle o convenzioni di progetto;
+- introduzione ripetitiva di test, logging, validazioni o gestione errori;
+- aggiornamenti di paradigma, per esempio spostare logica da servizi legacy a helper piu' piccoli;
+- manutenzione su monorepo dove una singola richiesta produce task separati su package diversi.
+
+Il punto non e' sostituire la revisione umana. Il punto e' spostare il lavoro faticoso e segmentabile in un processo tracciato: node-droid analizza, pianifica, modifica, valida, scrive audit e apre una PR. Lo sviluppatore resta responsabile di accettare, correggere o respingere il risultato.
+
+Non e' invece ideale per:
+
+- micro-modifiche che richiedono feedback immediato;
+- esplorazioni ambigue dove la direzione cambia ogni pochi minuti;
+- debug interattivo con molte ipotesi rapide;
+- decisioni di prodotto o design che richiedono giudizio umano continuo.
 
 ## Idea di Base
 
@@ -28,7 +52,7 @@ L'obiettivo e' lasciare allo sviluppatore un flusso Git normale: descrivi il lav
 - **Analisi prima dell'esecuzione**: per ogni task produce un piano operativo osservabile prima di modificare file.
 - **Recupero lavoro non eseguito**: i blocchi non eseguiti vengono salvati nella documentazione della run come file Markdown pronti da reinserire.
 - **Loop LLM + tool**: esegue modifiche con tool mirati e retry.
-- **Gate di build**: valida dopo ogni task tramite `.ai/build-instructions.yml` del repo target.
+- **Gate di build**: dopo ogni task esegue lo script `build` dei package toccati, se presente.
 - **Audit completo**: produce report Markdown in `.ai/` ed eventi MQTT opzionali.
 - **PR sempre creata**: apre una PR anche se alcuni task falliscono o restano bloccati.
 
@@ -62,7 +86,7 @@ Il runtime vive in `core/` ed e' organizzato in servizi NestJS:
 - `AIInstructionsService`, `PromptTemplateService`, `PromptService`: costruiscono i messaggi per il modello usando `AGENTS.md`.
 - `LLMProfileResolverService` e `LLMClientService`: gestiscono profilo e chiamate LLM.
 - `ToolRegistryService`: esegue tool locali, preferendo operazioni mirate su file.
-- `BuildService`: esegue install/build dichiarate.
+- `BuildService`: esegue install mirato e build standard dei package toccati.
 - `RunStateService`: coordina lo stato della run.
 - `RunLoggerService` e `AuditPublisherService`: producono log Markdown ed eventi MQTT.
 - `MergeRequestService`: crea la pull request.
@@ -113,8 +137,6 @@ Esempio `repo.yml`:
 remote: git@github.com:org/repo.git
 baseBranch: main
 
-buildCommand: npm run build
-
 token: ghp_xxx
 
 llm:
@@ -158,94 +180,64 @@ npm run start:dev
 npm run start:prod
 ```
 
+## Modalita' auto-develop
+
+La modalita' `auto-develop` serve a far lavorare un'istanza locale di
+node-droid su un clone di node-droid stesso, senza tenere il workspace dentro
+questo repository.
+
+Avvio:
+
+```bash
+./run-node-droid-local.sh
+```
+
+Lo script:
+
+1. calcola la root del repository sorgente, per esempio `node-droid`;
+2. crea un workspace fratello aggiungendo il suffisso `_workspace`, per esempio
+   `../node-droid_workspace`;
+3. crea la cartella `node-droid-self/` dentro quel workspace;
+4. copia `develop-config.yml` in `../node-droid_workspace/node-droid-self/repo.yml`;
+5. avvia `npm start` da `core/`, senza live reload.
+
+`develop-config.yml` e' la configurazione sorgente versionata per questa
+modalita'. Il file `repo.yml` dentro il workspace e' generato a ogni avvio e
+puo' essere ricreato senza perdere la configurazione.
+
+Il clone operativo resta in:
+
+```text
+../node-droid_workspace/node-droid-self/code/
+```
+
+Il flusso consigliato e':
+
+1. avviare `./run-node-droid-local.sh` in un terminale;
+2. creare task nel repository sorgente con commenti `[ai]` o `ai-tasks.md`;
+3. committare e pushare sul branch monitorato con `[ai]` nel messaggio;
+4. lasciare che node-droid crei un branch `ai/<runId>` e apra la PR;
+5. revisionare manualmente la PR prima di accettarla.
+
 Prerequisiti:
 
 - Node.js 20+
 - Docker e Docker Compose, opzionali
 - endpoint LLM OpenAI-compatible, per esempio vLLM, Ollama o simili
 
-## Build tramite `.ai/build-instructions.yml`
+## Gate di build
 
-node-droid valida i repository target usando esclusivamente:
+node-droid mantiene il gate di build volutamente semplice:
 
-```text
-.ai/build-instructions.yml
-```
+1. dopo ogni task guarda i file toccati;
+2. per i file di codice e per i `package.json` cerca il `package.json` piu' vicino;
+3. se quel package contiene `scripts.build` e il file toccato e' `package.json`, esegue prima `npm run install` quando esiste `scripts.install`, altrimenti `npm i`;
+4. se quel package contiene `scripts.build`, esegue `npm run build`;
+5. se nessun package rilevante espone `scripts.build`, salta il gate e registra lo skip nei log.
 
-Questo file dichiara:
-
-- quali unita' del repository esistono
-- come riconoscere quali unita' sono state toccate
-- dipendenze tra unita'
-- comandi di install e build
-- directory di lavoro dei comandi
-
-node-droid **non inferisce nulla** dalla struttura del progetto. Se la build e' errata, la causa e' la configurazione, non node-droid.
-
-Esempio progetto singolo:
-
-```yaml
-version: 1
-
-global:
-  install:
-    cwd: /
-    cmd: npm i
-
-units:
-  app:
-    type: app
-    path: /
-    build:
-      cwd: /
-      cmd: npm run build
-```
-
-Esempio monorepo:
-
-```yaml
-version: 1
-
-global:
-  install:
-    cwd: /
-    cmd: npm i
-
-units:
-  core-utils:
-    type: lib
-    path: /libs/core-utils
-    build:
-      cwd: /
-      cmd: nest build core-utils
-
-  auth-lib:
-    type: lib
-    path: /libs/auth
-    dependsOn:
-      - core-utils
-    build:
-      cwd: /
-      cmd: nest build auth-lib
-
-  api:
-    type: app
-    path: /apps/api
-    dependsOn:
-      - auth-lib
-      - core-utils
-    build:
-      cwd: /
-      cmd: nest build api
-```
-
-Regole:
-
-- `path` e' assoluto rispetto alla root del repo, per esempio `/`, `/apps/api`, `/libs/core`.
-- una unit e' toccata se un file modificato inizia con il suo `path`.
-- `global.install`, se presente, viene eseguito una volta.
-- le dipendenze sono risolte ricorsivamente.
-- dipendenze mancanti o cicli nel grafo fanno fallire la build subito.
+Non esistono configurazioni speciali di build nel `repo.yml`. Il contratto e'
+lo script standard `build` del package; l'install viene eseguito solo quando
+cambia `package.json` e c'e' un build da validare.
 
 ## Assegnare Task a node-droid
 
@@ -370,7 +362,6 @@ Il contratto completo e' in `docs/09-logging-and-audit.md`.
 | `LLM_MODEL` | modello | `gpt-4o-mini` |
 | `LLM_TEMPERATURE` | temperatura | `0.2` |
 | `LLM_MAX_TOKENS` | token massimi | `4096` |
-| `BUILD_CMD` | comando build fallback | `npm run build` |
 | `MAX_TASK_RETRIES` | retry task | `3` |
 | `MAX_TOOL_CALLS_PER_TASK` | limite chiamate tool per task | `30` |
 | `AI_COMMIT_TAG` | tag trigger commit | `[ai]` |

@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { execSync } from 'child_process';
 import { RepoContextService } from './repo-context.service';
 import { BuildResult } from '../types';
-import { ENV } from '../env';
 import { BuildHelpers } from '../helpers/build-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -15,16 +14,6 @@ export class BuildService {
     private readonly logger: RunLoggerService,
   ) {}
 
-  private _run(cmd: string) {
-    const { codePath } = this.repoContext.get();
-    return execSync(cmd, {
-      cwd: codePath,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-      shell: '/bin/bash',
-    });
-  }
-
   private runInDir(cmd: string, cwd: string) {
     return execSync(cmd, {
       cwd,
@@ -34,31 +23,47 @@ export class BuildService {
     });
   }
 
-  npmInstall() {
-    return this._run(ENV.INSTALL_CMD);
-  }
-
   build(): Promise<BuildResult> {
-    return this.run(ENV.BUILD_CMD);
+    return this.buildPackageDir('.');
   }
 
-  async installAndBuildPackages(packageDirs: string[]): Promise<BuildResult> {
+  async buildPackageDirs(
+    packageDirs: string[],
+    installPackageDirs: string[] = [],
+  ): Promise<BuildResult> {
     const start = Date.now();
     let combinedStdout = '';
+    let builtCount = 0;
+    let skippedCount = 0;
+    const installDirs = new Set(installPackageDirs);
+
     for (const dir of packageDirs) {
       const full = path.resolve(this.repoContext.get().codePath, dir);
-      const installCmd = this.getInstallCommand(full);
-      this.logger.event('📦', `Install [${dir}] (${installCmd})`);
-      try {
-        const out = this.runInDir(installCmd, full);
-        combinedStdout += `\n[${dir}] ${installCmd}\n${out}`;
-        this.logger.event('✅', `Install [${dir}] OK`);
-      } catch (err: any) {
-        this.logger.event('⚠️', `Install [${dir}] FAIL`, 'WARN');
-        return BuildHelpers.buildFailure(
-          start,
-          this.wrapCommandError(err, dir, installCmd),
+      if (!this.hasBuildScript(full)) {
+        skippedCount++;
+        const message = `[${dir}] install/build skipped: no package.json scripts.build`;
+        combinedStdout += `\n${message}\n`;
+        this.logger.event(
+          '⏭️',
+          `Install/build skipped [${dir}] (no build script)`,
         );
+        continue;
+      }
+
+      if (installDirs.has(dir)) {
+        const installCmd = this.getInstallCommand(full);
+        this.logger.event('📦', `Install [${dir}] (${installCmd})`);
+        try {
+          const out = this.runInDir(installCmd, full);
+          combinedStdout += `\n[${dir}] ${installCmd}\n${out}`;
+          this.logger.event('✅', `Install [${dir}] OK`);
+        } catch (err: any) {
+          this.logger.event('⚠️', `Install [${dir}] FAIL`, 'WARN');
+          return BuildHelpers.buildFailure(
+            start,
+            this.wrapCommandError(err, dir, installCmd),
+          );
+        }
       }
 
       try {
@@ -66,6 +71,7 @@ export class BuildService {
         this.logger.event('🏗️', `Build [${dir}] (${buildCmd})`);
         const out = this.runInDir(buildCmd, full);
         combinedStdout += `\n[${dir}] ${buildCmd}\n${out}`;
+        builtCount++;
         this.logger.event('✅', `Build [${dir}] OK`);
       } catch (err: any) {
         this.logger.event('⚠️', `Build [${dir}] FAIL`, 'WARN');
@@ -75,29 +81,48 @@ export class BuildService {
         );
       }
     }
+
+    if (!builtCount && skippedCount) {
+      this.logger.event('⏭️', 'Build gate skipped: no build scripts found');
+    }
+
     return BuildHelpers.buildSuccess(start, combinedStdout);
   }
 
-  private async run(BUILD_CMD: string): Promise<BuildResult> {
+  private async buildPackageDir(dir: string): Promise<BuildResult> {
     const start = Date.now();
+    const full = path.resolve(this.repoContext.get().codePath, dir);
+    if (!this.hasBuildScript(full)) {
+      const message = `[${dir}] build skipped: no package.json scripts.build`;
+      this.logger.event('⏭️', `Build skipped [${dir}] (no build script)`);
+      return BuildHelpers.buildSuccess(start, `${message}\n`);
+    }
+
     try {
-      const stdout = this._run(BUILD_CMD);
+      const stdout = this.runInDir('npm run build', full);
       return BuildHelpers.buildSuccess(start, stdout);
     } catch (err: any) {
       return BuildHelpers.buildFailure(start, err);
     }
   }
 
+  private hasBuildScript(dir: string): boolean {
+    return this.hasScript(dir, 'build');
+  }
+
   private getInstallCommand(dir: string): string {
+    return this.hasScript(dir, 'install') ? 'npm run install' : 'npm i';
+  }
+
+  private hasScript(dir: string, scriptName: string): boolean {
     const pkgPath = path.join(dir, 'package.json');
     try {
       const raw = fs.readFileSync(pkgPath, 'utf-8');
       const json = JSON.parse(raw);
-      if (json?.scripts?.install) return 'npm run install';
+      return typeof json?.scripts?.[scriptName] === 'string';
     } catch {
-      return 'npm install';
+      return false;
     }
-    return 'npm install';
   }
 
   private wrapCommandError(err: any, dir: string, cmd: string) {

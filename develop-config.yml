@@ -1,0 +1,18 @@
+id: node-droid-self
+remote: git@github.com:FVilli/node-droid.git
+baseBranch: main
+
+llm:
+  baseUrl: http://localhost:8000/v1
+  apiKey: dummy
+  model: qwen/qwen3-coder-next
+  temperature: 0.2
+  maxTokens: 262144
+
+agent:
+  maxTaskRetries: 3
+  stopOnFailure: true
+  maxToolCallsPerTask: 60
+
+triggers:
+  commitPrefix: "[ai]"

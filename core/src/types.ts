@@ -27,7 +27,6 @@ export interface RepoDefinition {
   id: string;
   remote: string;
   baseBranch: string;
-  buildCommand?: string;
   llm?: Partial<LLMProfile>;
   agent?: {
     maxTaskRetries?: number;
@@ -52,7 +51,6 @@ export interface RepoContext {
   sshPath?: string;
   remote: string;
   baseBranch: string;
-  buildCommand: string;
   llmProfile: LLMProfile;
   agentPolicy: {
     maxTaskRetries?: number;

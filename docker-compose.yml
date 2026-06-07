@@ -2,17 +2,27 @@
 services:
   node-droid:
     build:
-      context: ..
-      dockerfile: core/Dockerfile
+      context: ./core
+      dockerfile: Dockerfile
     container_name: node-droid
     volumes:
-      - ./workspace:/workspace
-      # SSH keys
+      - ${NODE_DROID_WORKSPACE:-../node-droid_workspace}:/app/workspace
       - ~/.ssh:/root/.ssh:ro
-      # Configurazione
-
-      
-
+      - ~/.config/gh:/root/.config/gh:ro
+    environment:
+      WORKSPACE_FOLDER: /app/workspace
+      LLM_API_URL: ${LLM_API_URL:-http://host.docker.internal:8000/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-dummy}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3-coder-next}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-262144}
+      GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/node-droid-known-hosts
+      GH_TOKEN: ${GH_TOKEN:-}
+      MQTT_AUDIT_ENABLED: ${MQTT_AUDIT_ENABLED:-false}
+      MQTT_AUDIT_URL: ${MQTT_AUDIT_URL:-mqtt://host.docker.internal:1883}
+      MQTT_AUDIT_TOPIC_PREFIX: ${MQTT_AUDIT_TOPIC_PREFIX:-node-droid/audit}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     restart: unless-stopped
     networks:
       - node-droid-network
